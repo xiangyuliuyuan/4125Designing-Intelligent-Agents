@@ -70,6 +70,7 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
 
         prev_dirt = count.dirtCollected
         episode_reward = 0.0
+        depleted_bots = set()  # Track which bots already got depleted penalty
 
         for frame in range(frames):
             runtime.simulation_tick += 1
@@ -87,12 +88,14 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
 
             for brain in ql_brains:
                 reward = -0.1  # time penalty
+                bot = brain.bot
+
                 if dirt_delta > 0:
                     reward += 10.0 * dirt_delta
-                # Check battery depletion
-                bot = brain.bot
-                if bot.battery <= 0:
-                    reward -= 50.0
+                # Check battery depletion — penalise only once per episode
+                if bot.battery <= 0 and bot.name not in depleted_bots:
+                    reward -= 20.0
+                    depleted_bots.add(bot.name)
                 brain.give_reward(reward)
                 episode_reward += reward
 

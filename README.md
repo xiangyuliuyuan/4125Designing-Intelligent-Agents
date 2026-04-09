@@ -113,18 +113,13 @@ docs/
 
 本项目基于课堂提供的单文件机器人仿真进行扩展，主要改动：
 
-- **模块化架构**：从约 1200 行的单体文件重构为 31 个职责明确的模块
-- **25 项 Bug 修复**：涵盖 A* 寻路、充电系统、运动物理、实体管理
-- **9 项设计改进**：消除重复代码、死代码和不一致性
-- **3 项新功能**：结构化日志系统、运行时日志级别 UI 控件、机器人主动避猫
+- [**模块化架构**](docs/architecture-overview.md)：从约 1200 行的单体文件重构为 31 个职责明确的模块
+- [**25 项 Bug 修复**](docs/bugfixes.md)：涵盖 A* 寻路、充电系统、运动物理、实体管理
+- [**9 项设计改进 & 3 项新功能**](docs/new-features.md)：结构化日志、运行时日志级别 UI 控件、机器人主动避猫等
 - **61 个回归测试**：覆盖所有已修复 Bug 和新功能
 - **Headless 模式**：`run_headless.py` 支持无 GUI 自动化实验
 
-详细变更记录：
-- [docs/CHANGES.md](docs/CHANGES.md) — 变更记录总览
-- [docs/bugfixes.md](docs/bugfixes.md) — 所有 Bug 修复及根因分析
-- [docs/architecture-overview.md](docs/architecture-overview.md) — 模块结构说明
-- [docs/new-features.md](docs/new-features.md) — 新增功能文档
+> 完整变更记录见 [docs/CHANGES.md](docs/CHANGES.md)
 
 ## Headless 实验模式
 
@@ -171,9 +166,11 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 
 ## 研究问题
 
-### 研究问题 1：三种智能体架构的清扫性能对比 `[进行中]`
+### 研究问题 1：三种智能体架构的清扫性能对比 `[已完成]`
 
 > **问题**：规则型（Subsumption）、反应型（人工势场法）、学习型（Q-Learning）三种根本不同的智能体架构，在清扫任务中表现如何？各自的优劣势是什么？
+>
+> **详细报告**：[docs/rq1-report.md](docs/rq1-report.md)
 
 #### 三种算法
 
@@ -183,22 +180,47 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 | **人工势场法 (APF)** | 反应型 (Reactive) | 引力/斥力向量实时合成 | 否 | `robot/brain_potential_field.py` |
 | **Q-Learning** | 学习型 (Learning) | 从经验中学习最优Q值策略 | 是 | `robot/brain_qlearning.py` |
 
-#### 实验设计
-- **标准对比**：3种算法 × 10个随机种子 × 1500帧
-- **指标**：垃圾收集量、收集速率、猫碰撞次数、电量耗尽次数
-- **统计检验**：独立样本 t 检验（pairwise comparisons）
+#### 核心结论
 
-#### 初步结果
+**Q-Learning 在所有实验中表现最优**，尤其在泛化能力上优势显著。每种算法各有明确的优劣势：
 
-| 算法 | 平均收集量 | 标准差 | 收集速率 (dirt/frame) |
-|------|-----------|--------|----------------------|
-| Subsumption | 77.0 | ±13.7 | 0.051 |
-| Potential Field | 97.0 | ±14.3 | 0.065 |
-| **Q-Learning** | **104.6** | **±8.5** | **0.070** |
+| 特征 | Subsumption | Potential Field | Q-Learning |
+|------|------------|-----------------|------------|
+| 清扫效率 | 最低 (77.0) | 中等 (88.8) | **最高 (93.5)** |
+| 安全性 | **最安全** (0 猫冻结) | 不稳定 (12.4 猫冻结) | 安全 (0 猫冻结) |
+| 电量管理 | **完美** (0 耗尽) | **完美** (0 耗尽) | 存在缺陷 |
+| 泛化能力 | 低 | 中 | **最强** |
 
-- Q-Learning vs Subsumption：**p < 0.001**（高度显著）
-- Potential Field vs Subsumption：**p = 0.005**（显著）
-- Q-Learning vs Potential Field：p = 0.164（不显著）
+#### 实验结果展示
+
+**标准对比** — Q-Learning 显著优于 Subsumption (p=0.019)：
+
+<p align="center">
+  <img src="docs/rq1-figures/bar_dirt_collected.png" width="45%" />
+  <img src="docs/rq1-figures/box_collection_rate.png" width="45%" />
+</p>
+
+**猫数量鲁棒性** — 随猫增多 Subsumption/APF 明显退化，Q-Learning 最稳定：
+
+<p align="center">
+  <img src="docs/rq1-figures/line_cat_gradient.png" width="60%" />
+</p>
+
+**泛化测试** — Q-Learning 在未见过的环境中优势最大（hard mode +36%）：
+
+| 环境 | Subsumption | APF | Q-Learning | Q-Learning 优势 |
+|------|------------|-----|------------|----------------|
+| 标准 (3bot, 4cat) | 77.0 | 88.8 | **93.5** | +6% vs APF |
+| 单机器人 (1bot, 4cat) | 31.3 | 33.9 | **44.3** | **+31%** |
+| 多机器人 (5bot, 4cat) | 103.1 | 111.3 | **133.1** | **+20%** |
+| 困难模式 (1bot, 8cat) | 22.0 | 28.8 | **39.3** | **+36%** |
+
+**训练曲线与训练轮次效果**：
+
+<p align="center">
+  <img src="docs/rq1-figures/training_curve_reward.png" width="45%" />
+  <img src="docs/rq1-figures/line_training_duration.png" width="45%" />
+</p>
 
 #### 实验运行方式
 
@@ -206,18 +228,25 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 # 1. 训练 Q-Learning 智能体
 python experiments/train_qlearning.py --episodes 200 --frames 1500
 
-# 2. 运行三方对比实验
-python experiments/run_experiments.py --brain-types subsumption potential_field qlearning --seeds 10 --frames 1500
+# 2. 标准对比实验
+python experiments/run_experiments.py --experiment-type comparison --seeds 10 --frames 1500
 
-# 3. 生成分析图表与统计报告
-python experiments/analyze_results.py --comparison experiments/results/comparison.csv --training experiments/results/training_curve.csv --output-dir experiments/figures/
+# 3. 猫数量梯度实验
+python experiments/run_experiments.py --experiment-type cat_gradient --seeds 10 --frames 1500
+
+# 4. 训练轮次实验
+python experiments/run_experiments.py --experiment-type training_duration --seeds 10 --frames 1500
+
+# 5. 泛化测试
+python experiments/run_generalization.py --seeds 10 --frames 1500
+
+# 6. 生成图表
+python experiments/analyze_results.py --comparison experiments/results/comparison.csv \
+  --training experiments/results/training_curve.csv \
+  --cat-gradient experiments/results/cat_gradient.csv \
+  --training-duration experiments/results/training_duration.csv \
+  --qtable experiments/qtables/trained.json --output-dir experiments/figures/
 ```
-
-#### 产出文件
-- `experiments/figures/` — 8张分析图表 + 统计摘要
-- `experiments/results/comparison.csv` — 原始实验数据
-- `experiments/results/training_curve.csv` — Q-Learning训练曲线
-- `experiments/qtables/trained.json` — 训练好的Q表
 
 ### 研究问题 2-5：待定
 

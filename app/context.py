@@ -16,10 +16,14 @@ DEFAULT_WORLD_CONFIG = {
 }
 
 
-def create_simulation_data(canvas, config=None, brain_type="subsumption"):
+def create_simulation_data(canvas, config=None, brain_type="subsumption", noOfCats=None, noOfBots=None):
     world_config = dict(DEFAULT_WORLD_CONFIG)
     if config:
         world_config.update(config)
+    if noOfCats is not None:
+        world_config["noOfCats"] = noOfCats
+    if noOfBots is not None:
+        world_config["noOfBots"] = noOfBots
 
     count = Counter()
     agents, passive_objects, count, cats, debris_count, chargers, astar = createObjects(

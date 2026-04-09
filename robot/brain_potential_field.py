@@ -30,7 +30,7 @@ class PotentialFieldBrain:
         self.force_cat_freeze = False
 
         # Cat thresholds
-        self.cat_avoid_threshold = 700
+        self.cat_avoid_threshold = 400
         self.cat_freeze_threshold = 3000
 
         # APF thresholds
@@ -236,8 +236,14 @@ class PotentialFieldBrain:
         cat_force = self._repulsive_force_cat(catL, catR)
         if cat_sum > self.cat_avoid_threshold:
             self.isAvoidingCat = True
-            net_turn += cat_force * 3.0  # Strong repulsion
-            forward_scale = 0.6
+            # Emergency stop when cat signal is very high (matches freeze
+            # behaviour of other brains) — return immediately with zero speed
+            if cat_sum > self.cat_freeze_threshold:
+                self.is_cat_frozen = True
+                self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
+                return 0.0, 0.0, newX, newY
+            net_turn += cat_force * 8.0  # Strong repulsion (increased from 3)
+            forward_scale = 0.3
 
         # Repulsive: debris
         debris_force = self._repulsive_force_debris(debrisL, debrisR)

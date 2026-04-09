@@ -10,8 +10,7 @@ build/
 .pytest_cache/
 
 # Logs (auto-generated at runtime)
-logs/*.log
-logs/*.log.*
+logs/
 
 # IDE / Editor
 .vscode/
@@ -28,6 +27,11 @@ logs/*.log.*
 AGENTS.md
 verification.md
 docs/CWrequirement/
+
+# Experiment artifacts (auto-generated, can be reproduced)
+experiments/figures/
+experiments/results/training_curve_ep*.csv
+experiments/qtables/trained_ep*.json
 
 # Environment
 .env

@@ -14,8 +14,9 @@ TURN_RIGHT = 2
 SLOW_FORWARD = 3
 SEEK_LIGHT_LEFT = 4
 SEEK_LIGHT_RIGHT = 5
+STOP = 6
 
-NUM_ACTIONS = 6
+NUM_ACTIONS = 7
 
 ACTION_SPEEDS = {
     FORWARD: (5, 5),
@@ -24,6 +25,7 @@ ACTION_SPEEDS = {
     SLOW_FORWARD: (3, 3),
     SEEK_LIGHT_LEFT: (3, 5),
     SEEK_LIGHT_RIGHT: (5, 3),
+    STOP: (0.0, 0.0),
 }
 
 
@@ -77,13 +79,15 @@ class QLearningBrain:
         else:
             charger_dir = "right"
 
-        # Battery level
-        if battery > 600:
+        # Battery level (4 granular buckets for better battery management)
+        if battery > 700:
             battery_level = "high"
-        elif battery >= 300:
+        elif battery > 400:
             battery_level = "medium"
-        else:
+        elif battery > 200:
             battery_level = "low"
+        else:
+            battery_level = "critical"
 
         # Cat danger
         cat_sum = catL + catR

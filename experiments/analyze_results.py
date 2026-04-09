@@ -2,10 +2,11 @@
 
 import argparse
 import csv
+import json
 import sys
 import os
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -37,6 +38,9 @@ except ImportError:
 # ---------------------------------------------------------------------------
 BRAIN_ORDER = ["Subsumption", "Potential Field", "Q-Learning"]
 COLORS = {"Subsumption": "#4C72B0", "Potential Field": "#DD8452", "Q-Learning": "#55A868"}
+
+# Action names used in Q-table visualisation
+ACTION_NAMES = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "GRAB", "GO_HOME"]
 
 # Mapping from raw CSV brain_type values to canonical Title Case labels
 _BRAIN_ALIASES = {
@@ -447,6 +451,325 @@ def chart_training_dirt(rows, output_dir):
 
 
 # ---------------------------------------------------------------------------
+# CSV readers: cat_gradient & training_duration
+# ---------------------------------------------------------------------------
+def read_cat_gradient_csv(path: str):
+    """Return list of dicts from cat_gradient.csv."""
+    rows = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            row["brain_type"] = _canonicalise_brain(row["brain_type"])
+            for key in ("seed", "frames", "dirt_collected", "cat_freeze_count",
+                        "battery_depletions", "cat_count"):
+                if key in row:
+                    try:
+                        row[key] = int(row[key])
+                    except (ValueError, TypeError):
+                        row[key] = 0
+            if "collection_rate" in row:
+                try:
+                    row["collection_rate"] = float(row["collection_rate"])
+                except (ValueError, TypeError):
+                    row["collection_rate"] = 0.0
+            rows.append(row)
+    return rows
+
+
+def read_training_duration_csv(path: str):
+    """Return list of dicts from training_duration.csv."""
+    rows = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            row["brain_type"] = _canonicalise_brain(row["brain_type"])
+            for key in ("seed", "frames", "dirt_collected", "cat_freeze_count",
+                        "battery_depletions", "training_episodes"):
+                if key in row:
+                    try:
+                        row[key] = int(row[key])
+                    except (ValueError, TypeError):
+                        row[key] = 0
+            if "collection_rate" in row:
+                try:
+                    row["collection_rate"] = float(row["collection_rate"])
+                except (ValueError, TypeError):
+                    row["collection_rate"] = 0.0
+            rows.append(row)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Chart: line_cat_gradient.png
+# ---------------------------------------------------------------------------
+def chart_line_cat_gradient(rows, output_dir):
+    """Line chart with error bands: dirt collected vs cat count per brain type."""
+    # Group by (brain_type, cat_count)
+    data = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        data[r["brain_type"]][r["cat_count"]].append(r["dirt_collected"])
+
+    if not data:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for brain in BRAIN_ORDER:
+        if brain not in data:
+            continue
+        cat_counts = sorted(data[brain].keys())
+        means = [np.mean(data[brain][c]) for c in cat_counts]
+        stds = [np.std(data[brain][c], ddof=1) if len(data[brain][c]) > 1 else 0.0
+                for c in cat_counts]
+        color = COLORS.get(brain, "#999999")
+        means_arr = np.array(means)
+        stds_arr = np.array(stds)
+        ax.plot(cat_counts, means, "o-", color=color, linewidth=2, label=brain)
+        ax.fill_between(cat_counts, means_arr - stds_arr, means_arr + stds_arr,
+                        color=color, alpha=0.2)
+
+    ax.legend(fontsize=11)
+    _style_ax(ax, "Impact of Cat Count on Cleaning Performance",
+              "Mean Dirt Collected", "Cat Count")
+
+    path = Path(output_dir) / "line_cat_gradient.png"
+    _savefig(fig, path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Chart: line_cat_gradient_rate.png
+# ---------------------------------------------------------------------------
+def chart_line_cat_gradient_rate(rows, output_dir):
+    """Line chart with error bands: collection rate vs cat count per brain type."""
+    data = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        data[r["brain_type"]][r["cat_count"]].append(r["collection_rate"])
+
+    if not data:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for brain in BRAIN_ORDER:
+        if brain not in data:
+            continue
+        cat_counts = sorted(data[brain].keys())
+        means = [np.mean(data[brain][c]) for c in cat_counts]
+        stds = [np.std(data[brain][c], ddof=1) if len(data[brain][c]) > 1 else 0.0
+                for c in cat_counts]
+        color = COLORS.get(brain, "#999999")
+        means_arr = np.array(means)
+        stds_arr = np.array(stds)
+        ax.plot(cat_counts, means, "o-", color=color, linewidth=2, label=brain)
+        ax.fill_between(cat_counts, means_arr - stds_arr, means_arr + stds_arr,
+                        color=color, alpha=0.2)
+
+    ax.legend(fontsize=11)
+    _style_ax(ax, "Impact of Cat Count on Collection Rate",
+              "Collection Rate (dirt/frame)", "Cat Count")
+
+    path = Path(output_dir) / "line_cat_gradient_rate.png"
+    _savefig(fig, path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Chart: line_training_duration.png
+# ---------------------------------------------------------------------------
+def chart_line_training_duration(rows, output_dir, comparison_rows=None):
+    """Line chart: Q-Learning dirt collected vs training episodes, with baselines."""
+    # Filter Q-Learning rows only
+    ql_data = defaultdict(list)
+    for r in rows:
+        if r["brain_type"] == "Q-Learning":
+            ql_data[r["training_episodes"]].append(r["dirt_collected"])
+
+    if not ql_data:
+        return None
+
+    episodes = sorted(ql_data.keys())
+    means = [np.mean(ql_data[e]) for e in episodes]
+    stds = [np.std(ql_data[e], ddof=1) if len(ql_data[e]) > 1 else 0.0
+            for e in episodes]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.errorbar(episodes, means, yerr=stds, fmt="o-", color=COLORS["Q-Learning"],
+                linewidth=2, capsize=6, label="Q-Learning")
+
+    # Add baseline dashed lines from comparison.csv if available
+    if comparison_rows:
+        baselines = _group_by_brain(comparison_rows, "dirt_collected")
+        for brain, style in [("Subsumption", "--"), ("Potential Field", ":")]:
+            if brain in baselines and baselines[brain]:
+                baseline_mean = np.mean(baselines[brain])
+                ax.axhline(y=baseline_mean, linestyle=style,
+                           color=COLORS.get(brain, "#999999"), linewidth=1.5,
+                           label=f"{brain} baseline ({baseline_mean:.1f})")
+
+    ax.legend(fontsize=11)
+    _style_ax(ax, "Effect of Training Duration on Q-Learning Performance",
+              "Mean Dirt Collected", "Training Episodes")
+
+    path = Path(output_dir) / "line_training_duration.png"
+    _savefig(fig, path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Q-table parsing helpers
+# ---------------------------------------------------------------------------
+def _parse_qtable(path: str):
+    """Parse a Q-table JSON file into {(state_tuple, action_index): q_value}.
+
+    Keys in the JSON have the form:
+        "('left', 'none', 'high', 'low', 'low', 'low'), 0"
+    """
+    with open(path, encoding="utf-8") as fh:
+        raw = json.load(fh)
+
+    parsed = {}
+    for key_str, value in raw.items():
+        # Split on the last comma before the action integer
+        # Format: "(<state tuple>), <action>"
+        last_paren = key_str.rfind(")")
+        if last_paren == -1:
+            continue
+        state_part = key_str[:last_paren + 1].strip()
+        action_part = key_str[last_paren + 1:].strip().lstrip(",").strip()
+        try:
+            action = int(action_part)
+        except ValueError:
+            continue
+        # Parse the state tuple from its string representation
+        # e.g. "('left', 'none', 'high', 'low', 'low', 'low')"
+        try:
+            state_tuple = eval(state_part)  # noqa: S307
+        except Exception:
+            continue
+        parsed[(state_tuple, action)] = float(value)
+
+    return parsed
+
+
+def _qtable_best_actions(parsed):
+    """Return {state_tuple: best_action_index} from parsed Q-table."""
+    # Group by state, find argmax action
+    state_actions = defaultdict(dict)
+    for (state, action), qval in parsed.items():
+        state_actions[state][action] = qval
+
+    best = {}
+    for state, actions in state_actions.items():
+        best[state] = max(actions, key=actions.get)
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Chart: heatmap_policy.png
+# ---------------------------------------------------------------------------
+def chart_heatmap_policy(qtable_path, output_dir):
+    """Policy heatmap: most common best action per (battery_level, cat_danger)."""
+    parsed = _parse_qtable(qtable_path)
+    if not parsed:
+        return None
+
+    best_actions = _qtable_best_actions(parsed)
+
+    # State tuple structure: (dirt_direction, cat_direction, battery_level,
+    #                         cat_danger, dirt_density, exploration_status)
+    # We want battery_level (index 2) and cat_danger (index 3)
+    battery_levels = ["high", "medium", "low"]
+    cat_danger_levels = ["low", "medium", "high"]
+
+    # For each (battery, cat_danger), count best actions
+    grid = {}
+    for (bat, cat) in [(b, c) for b in battery_levels for c in cat_danger_levels]:
+        action_counts = Counter()
+        for state, action in best_actions.items():
+            if len(state) >= 4 and state[2] == bat and state[3] == cat:
+                action_counts[action] += 1
+        if action_counts:
+            grid[(bat, cat)] = action_counts.most_common(1)[0][0]
+        else:
+            grid[(bat, cat)] = -1  # no data
+
+    # Build the heatmap matrix
+    n_actions = len(ACTION_NAMES)
+    # Colour map: one colour per action
+    action_colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3"]
+    # Extend if more actions than colours
+    while len(action_colors) < n_actions:
+        action_colors.append("#999999")
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    matrix = np.zeros((len(battery_levels), len(cat_danger_levels)), dtype=int)
+    for i, bat in enumerate(battery_levels):
+        for j, cat in enumerate(cat_danger_levels):
+            act = grid.get((bat, cat), -1)
+            matrix[i, j] = act if act >= 0 else 0
+
+    # Use imshow with discrete colour boundaries
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    cmap = ListedColormap(action_colors[:n_actions])
+    bounds = list(range(n_actions + 1))
+    norm = BoundaryNorm(bounds, cmap.N)
+
+    im = ax.imshow(matrix, cmap=cmap, norm=norm, aspect="auto")
+
+    # Annotate cells with action names
+    for i in range(len(battery_levels)):
+        for j in range(len(cat_danger_levels)):
+            act = grid.get((battery_levels[i], cat_danger_levels[j]), -1)
+            label = ACTION_NAMES[act] if 0 <= act < len(ACTION_NAMES) else "N/A"
+            ax.text(j, i, label, ha="center", va="center", fontsize=10,
+                    fontweight="bold", color="white")
+
+    ax.set_xticks(range(len(cat_danger_levels)))
+    ax.set_xticklabels(cat_danger_levels)
+    ax.set_yticks(range(len(battery_levels)))
+    ax.set_yticklabels(battery_levels)
+    ax.set_xlabel("Cat Danger Level", fontsize=12)
+    ax.set_ylabel("Battery Level", fontsize=12)
+    ax.set_title("Q-Learning Learned Policy Summary", fontsize=14, pad=12)
+
+    path = Path(output_dir) / "heatmap_policy.png"
+    _savefig(fig, path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Chart: bar_action_distribution.png
+# ---------------------------------------------------------------------------
+def chart_bar_action_distribution(qtable_path, output_dir):
+    """Bar chart: how many states prefer each action."""
+    parsed = _parse_qtable(qtable_path)
+    if not parsed:
+        return None
+
+    best_actions = _qtable_best_actions(parsed)
+
+    counts = Counter(best_actions.values())
+    # Build ordered counts for each action
+    actions = list(range(len(ACTION_NAMES)))
+    values = [counts.get(a, 0) for a in actions]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3"]
+    while len(colors) < len(actions):
+        colors.append("#999999")
+
+    x = np.arange(len(actions))
+    ax.bar(x, values, color=colors[:len(actions)], edgecolor="white", width=0.55)
+    ax.set_xticks(x)
+    ax.set_xticklabels(ACTION_NAMES, rotation=15, ha="right")
+    _style_ax(ax, "Q-Learning Action Distribution Across States",
+              "Number of States", "Action")
+
+    path = Path(output_dir) / "bar_action_distribution.png"
+    _savefig(fig, path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main(argv=None):
@@ -464,6 +787,24 @@ def main(argv=None):
         type=str,
         default=None,
         help="Path to training_curve.csv",
+    )
+    parser.add_argument(
+        "--cat-gradient",
+        type=str,
+        default=None,
+        help="Path to cat_gradient.csv",
+    )
+    parser.add_argument(
+        "--training-duration",
+        type=str,
+        default=None,
+        help="Path to training_duration.csv",
+    )
+    parser.add_argument(
+        "--qtable",
+        type=str,
+        default=None,
+        help="Path to trained Q-table JSON file (trained.json)",
     )
     parser.add_argument(
         "--output-dir",
@@ -535,6 +876,65 @@ def main(argv=None):
                 print(f"  WARNING: could not generate {name}: {exc}", file=sys.stderr)
     elif args.training:
         print(f"WARNING: training file not found: {args.training}", file=sys.stderr)
+
+    # --- cat gradient charts ------------------------------------------------
+    if args.cat_gradient and Path(args.cat_gradient).is_file():
+        print(f"Reading cat gradient data from {args.cat_gradient}")
+        cat_grad_rows = read_cat_gradient_csv(args.cat_gradient)
+
+        for name, fn in [
+            ("line_cat_gradient.png", chart_line_cat_gradient),
+            ("line_cat_gradient_rate.png", chart_line_cat_gradient_rate),
+        ]:
+            try:
+                result = fn(cat_grad_rows, output_dir)
+                if result:
+                    generated.append(result)
+            except Exception as exc:
+                print(f"  WARNING: could not generate {name}: {exc}", file=sys.stderr)
+    elif args.cat_gradient:
+        print(f"WARNING: cat gradient file not found: {args.cat_gradient}", file=sys.stderr)
+
+    # --- training duration chart --------------------------------------------
+    if args.training_duration and Path(args.training_duration).is_file():
+        print(f"Reading training duration data from {args.training_duration}")
+        td_rows = read_training_duration_csv(args.training_duration)
+
+        # Attempt to load comparison rows for baseline lines
+        comp_rows_for_baseline = None
+        if args.comparison and Path(args.comparison).is_file():
+            try:
+                comp_rows_for_baseline = read_comparison_csv(args.comparison)
+            except Exception:
+                pass
+
+        try:
+            result = chart_line_training_duration(td_rows, output_dir, comp_rows_for_baseline)
+            if result:
+                generated.append(result)
+        except Exception as exc:
+            print(f"  WARNING: could not generate line_training_duration.png: {exc}",
+                  file=sys.stderr)
+    elif args.training_duration:
+        print(f"WARNING: training duration file not found: {args.training_duration}",
+              file=sys.stderr)
+
+    # --- Q-table visualisation charts ---------------------------------------
+    if args.qtable and Path(args.qtable).is_file():
+        print(f"Reading Q-table from {args.qtable}")
+
+        for name, fn in [
+            ("heatmap_policy.png", chart_heatmap_policy),
+            ("bar_action_distribution.png", chart_bar_action_distribution),
+        ]:
+            try:
+                result = fn(args.qtable, output_dir)
+                if result:
+                    generated.append(result)
+            except Exception as exc:
+                print(f"  WARNING: could not generate {name}: {exc}", file=sys.stderr)
+    elif args.qtable:
+        print(f"WARNING: Q-table file not found: {args.qtable}", file=sys.stderr)
 
     # --- summary ------------------------------------------------------------
     if generated:
