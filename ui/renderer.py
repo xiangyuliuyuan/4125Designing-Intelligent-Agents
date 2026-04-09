@@ -7,11 +7,6 @@ from ui.theme import (
     BATTERY_LOW,
     BATTERY_MAX,
     BATTERY_MID,
-    BOT_BODY_COLOR,
-    BOT_COLOR_AVOIDING,
-    BOT_COLOR_CHARGING,
-    BOT_COLOR_DEPLETED,
-    BOT_COLOR_NORMAL,
     CAT_COLOR_JUMPING,
     CAT_COLOR_NORMAL,
     CHARGER_BOLT_COLOR,
@@ -66,7 +61,7 @@ def draw_bot_status_label(canvas, bot):
         bot.x, bot.y - 44,
         text=label,
         fill=_battery_color(bot.battery),
-        font=("Helvetica", 8),
+        font=("Helvetica", 10),
         tags=bot.name,
     )
 
@@ -232,7 +227,7 @@ def draw_dirt(canvas, dirt_obj):
         if dirt_obj.clean_count != float("inf") and dirt_obj.clean_count > 0:
             canvas.create_text(
                 cx, cy, text=str(dirt_obj.clean_count),
-                fill=TEXT_DARK, font=("Helvetica", 8, "bold"), tags=dirt_obj.name,
+                fill=TEXT_DARK, font=("Helvetica", 10, "bold"), tags=dirt_obj.name,
             )
     elif trash_type == "debris":
         # X-marked obstacle

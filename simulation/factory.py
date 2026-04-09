@@ -57,6 +57,7 @@ def _find_clear_position(placed_objects, clearance, margin=100,
         if not _overlaps_obstacles(x, y, clearance, placed_objects):
             return x, y
     # Fallback — return last attempt (very crowded world).
+    logger.warning("_find_clear_position: exhausted %d attempts, returning potentially overlapping position (%d, %d)", max_attempts, x, y)
     return x, y
 
 
@@ -70,7 +71,6 @@ def buttonClicked(x, y, agents):
 def _make_bot(name, astar, chargers):
     bot = Bot(name)
     bot.setAStar(astar)
-    bot.target_charger_list = chargers
     bot.setBrain(Brain(bot))
     return bot
 

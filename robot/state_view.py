@@ -12,6 +12,8 @@ def derive_bot_mode(bot):
     # actively_charging = bot is physically on the charger and receiving power
     if getattr(bot, "actively_charging", False):
         return "charging"
+    if brain and getattr(brain, "is_cat_frozen", False):
+        return "cat_freeze"
     if brain and getattr(brain, "isAvoidingCat", False):
         return "avoid_cat"
     if brain and getattr(brain, "isAvoidingDebris", False):

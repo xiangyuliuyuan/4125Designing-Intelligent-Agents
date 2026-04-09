@@ -88,6 +88,7 @@ MODE_LABELS = {
     "avoid_debris": "避让杂物",
     "overlap": "重叠",
     "depleted": "电量耗尽",
+    "queuing": "排队等候",
     "waiting_for_charger": "等待充电",
     "path_following": "导航中",
     "panic_jump": "惊跳",

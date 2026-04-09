@@ -44,7 +44,7 @@ def _build_index(passive_objects):
             lamp_objects.append(obj)
         if isinstance(obj, Charger):
             charger_objects.append(obj)
-        if isinstance(obj, (dirt.plusDirt, dirt.Dirt)):
+        if isinstance(obj, (dirt.plusDirt, dirt.Dirt)) and obj.is_cleanable():
             cleanable_dirt_entries.append((idx, obj))
 
     return PassiveObjectIndex(

@@ -85,22 +85,8 @@ class plusDirt(Dirt):
             return random.uniform(*weight_range)
         return 0.1
 
-    def _get_size_by_type(self):
-        return self.get_size_by_type(self.type)
-
     def draw_with_size(self, canvas):
         renderer.draw_dirt(canvas, self)
-
-    def _get_color_by_type(self):
-        colors = {
-            "dust": "lightgray",
-            "crumb": "brown",
-            "paper": "white",
-            "liquid": "lightblue",
-            "hair": "darkgray",
-            "debris": "gray",
-        }
-        return colors.get(self.type, "gray")
 
     def get_message(self):
         return [self.name, self.centreX, self.centreY, self.type, self.size, self.weight, self.clean_count]

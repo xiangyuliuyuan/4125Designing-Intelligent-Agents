@@ -18,13 +18,13 @@ def advance(bot, dt):
 
 def wrap(bot):
     if bot.x >= WORLD_SIZE:
-        bot.x = 0
+        bot.x -= WORLD_SIZE
     elif bot.x < 0:
-        bot.x = WORLD_SIZE - 1
+        bot.x += WORLD_SIZE
     if bot.y >= WORLD_SIZE:
-        bot.y = 0
+        bot.y -= WORLD_SIZE
     elif bot.y < 0:
-        bot.y = WORLD_SIZE - 1
+        bot.y += WORLD_SIZE
 
 
 WORLD_SIZE = 1000

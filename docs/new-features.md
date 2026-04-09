@@ -1,5 +1,7 @@
 # 新增功能说明
 
+> 适用版本：v1.1
+
 本文档记录在原始项目基础上新增的三个功能模块。
 
 ---
@@ -16,8 +18,8 @@
 
 | 通道 | 目标 | 默认级别 | 格式 |
 |------|------|---------|------|
-| 文件 handler | `logs/simulation.log` | `INFO` | 时间戳 + 级别 + 模块名 + 消息 |
-| 控制台 handler | `stderr` | `WARNING` | 精简格式 |
+| 文件 handler | `logs/simulation.log` | `INFO` | 结构化键值对（`%(message)s`） |
+| 控制台 handler | `stderr` | `WARNING` | 结构化键值对（`%(message)s`） |
 
 业务模块通过 `get_logger(__name__)` 获取 logger，统一使用 `sim` 命名空间，不污染 root logger。
 

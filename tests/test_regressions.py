@@ -821,7 +821,7 @@ class RegressionTests(unittest.TestCase):
 
         bot.move(canvas, 1.0)
 
-        self.assertEqual(bot.x, 0.0)
+        self.assertEqual(bot.x, 3.0)
         self.assertEqual(bot.y, 500.0)
 
     def test_cat_motion_scales_with_dt(self):

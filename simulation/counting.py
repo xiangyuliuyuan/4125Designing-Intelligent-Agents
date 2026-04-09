@@ -29,14 +29,3 @@ class Counter:
     def itemCollected(self, canvas, debris_count):
         self.dirtCollected += 1
         self.update_collected_display()
-
-    def update_stats(self, agents, runtime):
-        # 计算平均电量
-        total_battery = 0
-        active = 0
-        for agent in agents:
-            if hasattr(agent, 'battery'):
-                total_battery += agent.battery
-                active += 1
-        avg_battery = total_battery // active if active > 0 else 0
-        return active, avg_battery

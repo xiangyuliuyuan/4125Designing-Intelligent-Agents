@@ -7,7 +7,6 @@ from ui.theme import (
     BG_DARK,
     BTN_NEUTRAL_BG,
     BTN_NEUTRAL_FG,
-    FONT_BODY,
     FONT_SECTION,
     FONT_SMALL,
     TEXT_ACCENT,

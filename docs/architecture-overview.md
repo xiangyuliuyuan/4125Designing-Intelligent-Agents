@@ -1,5 +1,7 @@
 # Refactored Architecture Overview
 
+> 适用版本：v1.1
+
 ## 目标
 
 本次重构将原本集中在 `main.py` 的入口、仿真循环、实体定义、机器人逻辑和 Tk UI 装配拆分为多个职责明确的模块，降低跨层修改时的联动风险。
@@ -8,6 +10,7 @@
 
 ```text
 main.py                  # 启动入口 + 兼容导出
+run_headless.py          # 无头模式入口
 app/
   bootstrap.py           # 应用装配
   context.py             # 初始仿真状态装配与定时启动
@@ -89,7 +92,7 @@ logs/
 - 回归测试不再依赖真实 Tk 窗口启动。
 - `Cat`、`Charger`、`Dirt` 已进入 `entities/`，根目录兼容包装已移除。
 - 实体绘制逻辑集中在 `ui/renderer.py`，绘制实现不再散落在多个实体文件里。
-- `app/bootstrap.py` 从 256 行降到 145 行，初始状态装配和控制面板已拆出。
+- `app/bootstrap.py` 从 256 行降到 201 行，初始状态装配和控制面板已拆出。
 - 普通运行日志不再直接 `print()` 到控制台，而是统一进入 `logs/simulation.log`。
 - 控制台仅保留 `WARNING` / `ERROR` 级别，且文件级别和控制台级别可独立配置。
 - UI 运行参数区已新增两个日志级别下拉框，可分别控制文件日志和控制台日志级别，并立即生效。
@@ -99,7 +102,7 @@ logs/
 ## 后续可继续演进的方向
 
 - 为 `simulation/state.py`、`simulation/factory.py` 和 `app/bootstrap.py` 增加更细粒度单测。
-- 继续把 `Bot.draw()` 也迁入 renderer，彻底统一渲染出口。
+- 继续把 `Bot.draw()` 中剩余的绘制逻辑也迁入 renderer（电池条、状态标签、方向箭头、路径已迁移，机器人本体绘制仍在 `Bot.draw()` 中）。
 - 视需要把 UI 回调继续从 `bootstrap.py` 下沉到单独 action/controller 模块。
-- 如需长期运行仿真，可继续增加 UI 级日志级别切换和日志文件查看入口。
+- ~~UI 级日志级别切换~~（已在 `ui/controls.py` 中实现，文件/控制台级别可独立调整）。如需进一步，可增加日志文件查看入口。
 - 如需更进一步，可把当前日志级别显示到状态面板中，便于截图或演示时确认现场配置。

@@ -333,15 +333,6 @@ class Brain:
                     self.currentlyTurning = True
                     self.turningCount = random.randrange(20, 40)
 
-        if x >= 1000:
-            newX = 0
-        elif x < 0:
-            newX = 999
-        if y >= 1000:
-            newY = 0
-        elif y < 0:
-            newY = 999
-
         if self.is_cat_frozen and not was_cat_frozen:
             log_event(
                 "INFO",
