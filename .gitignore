@@ -25,6 +25,8 @@ logs/*.log.*
 .codex/
 .cursor/
 .trellis/
+AGENTS.md
+verification.md
 
 # Environment
 .env
