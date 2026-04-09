@@ -72,6 +72,45 @@ def create_speed_controls(parent, tk_module=None):
     return speed_var, speed_label
 
 
+def create_brain_selector(parent, tk_module=None):
+    if tk_module is None:
+        tk_module = tk
+
+    _DISPLAY_NAMES = {
+        "subsumption": "Subsumption 包容式",
+        "potential_field": "APF 人工势场法",
+        "qlearning": "Q-Learning",
+    }
+
+    frame = tk_module.Frame(parent, bg=BG_DARK)
+    frame.pack(fill=tk_module.X, padx=8, pady=4)
+
+    header = tk_module.Frame(frame, bg=BG_DARK)
+    header.pack(fill=tk_module.X)
+    tk_module.Label(header, text="决策算法", fg=TEXT_PRIMARY, bg=BG_DARK, font=FONT_SMALL).pack(side=tk_module.LEFT)
+    display_label = tk_module.Label(header, text=_DISPLAY_NAMES["subsumption"], fg=ACCENT_BLUE, bg=BG_DARK, font=FONT_SECTION)
+    display_label.pack(side=tk_module.LEFT, padx=10)
+
+    brain_type_var = tk_module.StringVar(value="subsumption")
+    menu = tk_module.OptionMenu(frame, brain_type_var, "subsumption", "potential_field", "qlearning")
+    menu.config(bg=BTN_NEUTRAL_BG, fg="#000000", font=FONT_SMALL, relief="flat", highlightthickness=0)
+    menu.pack(fill=tk_module.X, pady=(2, 4))
+
+    tk_module.Label(
+        frame,
+        text="⚠ 重置后生效",
+        fg=TEXT_SECONDARY,
+        bg=BG_DARK,
+        font=("Helvetica", 8),
+    ).pack(anchor="w")
+
+    def _on_brain_change(*_args):
+        display_label.config(text=_DISPLAY_NAMES.get(brain_type_var.get(), brain_type_var.get()))
+
+    brain_type_var.trace_add("write", _on_brain_change)
+    return brain_type_var
+
+
 def create_logging_controls(
     parent,
     file_level="INFO",

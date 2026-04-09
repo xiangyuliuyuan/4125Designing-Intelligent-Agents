@@ -205,9 +205,9 @@ def createObjects(
     )
 
 
-def add_bot(canvas, agents, passiveObjects, astar, chargers):
+def add_bot(canvas, agents, passiveObjects, astar, chargers, brain_type="subsumption"):
     bot_num = len(agents)
-    bot = _make_bot(f"Bot{bot_num}", astar, chargers)
+    bot = _make_bot(f"Bot{bot_num}", astar, chargers, brain_type=brain_type)
     bx, by = _find_clear_position(passiveObjects, _DEBRIS_CLEARANCE)
     bot.x, bot.y = bx, by
     agents.append(bot)

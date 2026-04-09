@@ -191,7 +191,7 @@ def moveIt(
     )
 
 
-def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button):
+def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button, brain_type="subsumption"):
     runtime.reset_flag = True
     runtime.simulation_running = False
     invalidate_passive_object_index()
@@ -212,6 +212,7 @@ def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button):
         noOfCats=4,
         count=count,
         debris_count_initial=0,
+        brain_type=brain_type,
     )
 
     stats_vars["collected"].config(text="0")

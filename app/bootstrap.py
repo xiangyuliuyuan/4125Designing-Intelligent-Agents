@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 
 from app.context import apply_reset_result, create_simulation_data, schedule_simulation
@@ -20,11 +21,23 @@ from simulation.factory import (
     remove_dirt,
 )
 from ui.control_panel import build_basic_controls, build_entity_controls
-from ui.controls import bind_keyboard_shortcuts, create_logging_controls, create_speed_controls
+from robot.brain_qlearning import QLearningBrain
+from ui.controls import bind_keyboard_shortcuts, create_brain_selector, create_logging_controls, create_speed_controls
 from ui.stats_panel import build_stats_panel, set_initial_stats
 from ui.theme import ACCENT_BLUE, BG_DARK, FONT_SECTION, FONT_TITLE, TEXT_ACCENT, TEXT_SECONDARY
 from ui.tooltip import CanvasTooltip
 from ui.window import build_side_panel, create_main_window, initialise
+
+
+_QTABLE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "experiments", "qtables", "trained.json")
+
+
+def _configure_qlearning_agents(agents, brain_type):
+    if brain_type == "qlearning" and os.path.exists(_QTABLE_PATH):
+        for agent in agents:
+            if hasattr(agent, "brain") and isinstance(agent.brain, QLearningBrain):
+                agent.brain.load_qtable(_QTABLE_PATH)
+                agent.brain.set_training(False)
 
 
 def _add_section_header(parent, text):
@@ -62,7 +75,10 @@ def run_app(tk_module=None):
 
     speed_var, _speed_label = create_speed_controls(side_panel, tk_module=tk_module)
 
-    simulation_data = create_simulation_data(canvas)
+    brain_type_var = create_brain_selector(side_panel, tk_module=tk_module)
+
+    simulation_data = create_simulation_data(canvas, brain_type=brain_type_var.get())
+    _configure_qlearning_agents(simulation_data["agents"], brain_type_var.get())
 
     def add_bot_callback():
         simulation_data["agents"] = add_bot(
@@ -71,7 +87,9 @@ def run_app(tk_module=None):
             simulation_data["passiveObjects"],
             simulation_data["astar"],
             simulation_data["chargers"],
+            brain_type=brain_type_var.get(),
         )
+        _configure_qlearning_agents(simulation_data["agents"][-1:], brain_type_var.get())
         stats_vars["active_bots"].config(text=str(len(simulation_data["agents"])))
         tooltip.update_data(simulation_data["agents"], simulation_data["cats"], simulation_data["chargers"])
 
@@ -139,9 +157,10 @@ def run_app(tk_module=None):
     build_entity_controls(side_panel, callbacks, tk_module=tk_module)
 
     def reset_callback():
-        result = reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button)
+        result = reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button, brain_type=brain_type_var.get())
         if result:
             apply_reset_result(simulation_data, result)
+            _configure_qlearning_agents(simulation_data["agents"], brain_type_var.get())
             tooltip.update_data(simulation_data["agents"], simulation_data["cats"], simulation_data["chargers"])
 
             if runtime.after_id is not None:

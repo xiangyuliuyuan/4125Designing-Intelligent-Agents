@@ -37,6 +37,16 @@ class PotentialFieldBrain:
         self.debris_repulse_threshold = 3000
         self.bot_repulse_threshold = 3000
 
+        # Debris hard avoidance state machine (like Subsumption)
+        self.debris_avoid_active = False
+        self.debris_avoid_counter = 0
+        self.debris_avoid_direction = 1
+        self.debris_hard_threshold = 5000
+        self.debris_hard_frames = 18
+
+        # Turn smoothing (dampen frame-to-frame oscillation)
+        self._smooth_turn = 0.0
+
         # Debug logging throttle
         self.debug_counter = 0
 
@@ -217,6 +227,46 @@ class PotentialFieldBrain:
             self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
+        # --- Priority 4: Hard debris avoidance (state machine) ---
+        if debris_sum > self.debris_hard_threshold or self.debris_avoid_active:
+            if not self.debris_avoid_active:
+                self.debris_avoid_active = True
+                self.debris_avoid_counter = self.debris_hard_frames
+                if debrisL > debrisR:
+                    self.debris_avoid_direction = -1  # turn right
+                elif debrisR > debrisL:
+                    self.debris_avoid_direction = 1   # turn left
+                else:
+                    self.debris_avoid_direction = random.choice([-1, 1])
+                log_event(
+                    "DEBUG",
+                    logger,
+                    event="bot.debris_avoid_started",
+                    bot=self.bot.name,
+                    mode="avoid_debris",
+                    reason="debris_detected",
+                    debris_signal=debris_sum,
+                )
+
+            if self.debris_avoid_counter > 0:
+                self.isAvoidingDebris = True
+                if self.debris_avoid_direction >= 0:
+                    speedLeft = 3.0
+                    speedRight = -3.0
+                else:
+                    speedLeft = -3.0
+                    speedRight = 3.0
+                self.debris_avoid_counter -= 1
+            else:
+                self.debris_avoid_active = False
+                self.isAvoidingDebris = False
+
+            if not self.debris_avoid_active or self.debris_avoid_counter <= 0:
+                self.debris_avoid_active = False
+            else:
+                self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
+                return speedLeft, speedRight, newX, newY
+
         # --- APF force summation ---
         net_turn = 0.0
         forward_scale = 1.0
@@ -236,21 +286,19 @@ class PotentialFieldBrain:
         cat_force = self._repulsive_force_cat(catL, catR)
         if cat_sum > self.cat_avoid_threshold:
             self.isAvoidingCat = True
-            # Emergency stop when cat signal is very high (matches freeze
-            # behaviour of other brains) — return immediately with zero speed
             if cat_sum > self.cat_freeze_threshold:
                 self.is_cat_frozen = True
                 self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
                 return 0.0, 0.0, newX, newY
-            net_turn += cat_force * 8.0  # Strong repulsion (increased from 3)
+            net_turn += cat_force * 8.0
             forward_scale = 0.3
 
-        # Repulsive: debris
+        # Repulsive: debris (soft force, complements hard avoidance above)
         debris_force = self._repulsive_force_debris(debrisL, debrisR)
         if debris_sum > self.debris_repulse_threshold:
             self.isAvoidingDebris = True
-            net_turn += debris_force * 2.0
-            forward_scale = 0.6
+            net_turn += debris_force * 4.0
+            forward_scale = 0.4
 
         # Repulsive: other bots
         bot_force = self._repulsive_force_bot(botL, botR)
@@ -258,6 +306,10 @@ class PotentialFieldBrain:
             self.isAvoiding = True
             net_turn += bot_force * 1.5
             forward_scale = 0.7
+
+        # --- Smooth turn signal to prevent jittering ---
+        self._smooth_turn = 0.6 * self._smooth_turn + 0.4 * net_turn
+        net_turn = self._smooth_turn
 
         # --- Convert net force to wheel speeds ---
         has_significant_force = (
@@ -269,7 +321,6 @@ class PotentialFieldBrain:
         )
 
         if battery < self.bot.battery_low_threshold and abs(charger_force) > 0.05:
-            # Low battery with charger signal: follow charger force
             speed = 3.0
             turn_modifier = net_turn * 3.0
             speedLeft = speed + turn_modifier
@@ -278,17 +329,14 @@ class PotentialFieldBrain:
             speedRight = max(-5.0, min(5.0, speedRight))
 
         elif has_significant_force:
-            # APF-driven movement
             speed = base_speed * forward_scale
             turn_modifier = net_turn * 3.0
             speedLeft = speed + turn_modifier
             speedRight = speed - turn_modifier
-            # Clamp
             speedLeft = max(-5.0, min(8.0, speedLeft))
             speedRight = max(-5.0, min(8.0, speedRight))
 
         else:
-            # No significant forces: wander randomly
             if self.currentlyTurning:
                 speedLeft = -2.0
                 speedRight = 2.0

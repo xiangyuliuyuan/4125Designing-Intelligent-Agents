@@ -57,6 +57,13 @@ class QLearningBrain:
         self.cat_avoid_hold_remaining = 0
         self.overlapCount = 0
 
+        # Debris avoidance state machine
+        self._debris_avoid_active = False
+        self._debris_avoid_counter = 0
+        self._debris_avoid_direction = 1
+        self._debris_back_frames = 5
+        self._debris_turn_frames = 18
+
     def _discretize_state(self, lightL, lightR, chargerL, chargerR, battery,
                           debrisL, debrisR, botL, botR, catL, catR):
         # Light direction
@@ -175,6 +182,9 @@ class QLearningBrain:
 
         bot_sum = botL + botR
 
+        debris_sum = debrisL + debrisR
+        cat_sum = catL + catR
+
         # --- Safety overrides (before Q-learning) ---
 
         # 1. Cat freeze
@@ -190,6 +200,53 @@ class QLearningBrain:
         else:
             self.isOverlapping = False
             self.overlapCount = 0
+
+        # 3. Cat avoidance
+        if cat_sum > 3000:
+            self.is_cat_frozen = True
+            self.isAvoidingCat = True
+            return 0.0, 0.0, newX, newY
+        elif cat_sum > 700:
+            self.isAvoidingCat = True
+            if catL > catR:
+                return 3.0, -3.0, newX, newY
+            else:
+                return -3.0, 3.0, newX, newY
+        else:
+            self.isAvoidingCat = False
+            self.is_cat_frozen = False
+
+        # 4. Debris avoidance - committed state machine
+        if debris_sum > 5000 and not self._debris_avoid_active:
+            self._debris_avoid_active = True
+            total = self._debris_back_frames + self._debris_turn_frames
+            self._debris_avoid_counter = total
+            if debrisL > debrisR:
+                self._debris_avoid_direction = -1  # will turn right
+            elif debrisR > debrisL:
+                self._debris_avoid_direction = 1   # will turn left
+            else:
+                self._debris_avoid_direction = random.choice([-1, 1])
+
+        if self._debris_avoid_active:
+            self.isAvoidingDebris = True
+            if self._debris_avoid_counter > self._debris_turn_frames:
+                # Phase 1: back up
+                speedLeft = -4.0
+                speedRight = -4.0
+            else:
+                # Phase 2: committed turn
+                if self._debris_avoid_direction >= 0:
+                    speedLeft = 3.0
+                    speedRight = -3.0
+                else:
+                    speedLeft = -3.0
+                    speedRight = 3.0
+            self._debris_avoid_counter -= 1
+            if self._debris_avoid_counter <= 0:
+                self._debris_avoid_active = False
+                self.isAvoidingDebris = False
+            return float(speedLeft), float(speedRight), newX, newY
 
         # --- Q-learning update for previous step ---
         state = self._discretize_state(
