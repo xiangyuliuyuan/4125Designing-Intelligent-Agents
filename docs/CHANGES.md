@@ -6,10 +6,10 @@
 
 | 类别 | 数量 | 详细文档 |
 |------|------|---------|
-| Bug 修复（功能缺陷） | 27 项 | [docs/bugfixes.md](docs/bugfixes.md#功能性-bug) |
-| 设计问题修复 | 7 项 | [docs/bugfixes.md](docs/bugfixes.md#设计问题) |
-| 模块化重构 | 2 轮 | [docs/architecture-overview.md](docs/architecture-overview.md) |
-| 新增功能 | 3 项 | [docs/new-features.md](docs/new-features.md) |
+| Bug 修复（功能缺陷） | 27 项 | [bugfixes.md](bugfixes.md#功能性-bug) |
+| 设计问题修复 | 7 项 | [bugfixes.md](bugfixes.md#设计问题) |
+| 模块化重构 | 2 轮 | [architecture-overview.md](architecture-overview.md) |
+| 新增功能 | 3 项 | [new-features.md](new-features.md) |
 
 ---
 
@@ -25,7 +25,7 @@
 
 另修复 7 个设计问题，包括重复代码提取、冗余逻辑清理、猫跳走方向反向。
 
-详见 → [docs/bugfixes.md](docs/bugfixes.md)
+详见 → [bugfixes.md](bugfixes.md)
 
 ---
 
@@ -51,7 +51,7 @@ ui/                  # Tkinter 组件（window、renderer、controls、panels）
 
 `counting.py` 和 `astar.py` 已移入 `simulation/` 包，根目录的 `cat.py`、`charger.py`、`dirt.py` 兼容包装层已移除，所有调用方已更新为从 `entities/` 和 `simulation/` 直接导入。
 
-详见 → [docs/architecture-overview.md](docs/architecture-overview.md)
+详见 → [architecture-overview.md](architecture-overview.md)
 
 ---
 
@@ -63,10 +63,10 @@ ui/                  # Tkinter 组件（window、renderer、controls、panels）
 | UI 日志级别控件 | 在运行参数区新增两个下拉框，可运行时独立调整文件/控制台日志级别 |
 | 机器人主动避猫 | 机器人新增猫感知能力，猫提前进入 panic 跳离，降低接触概率 |
 
-详见 → [docs/new-features.md](docs/new-features.md)
+详见 → [new-features.md](new-features.md)
 
 ---
 
 ## 测试状态
 
-当前全部 46 个回归测试通过，验证详情见 [verification.md](verification.md)。
+当前全部 46 个回归测试通过（`python -m unittest -v`）。
