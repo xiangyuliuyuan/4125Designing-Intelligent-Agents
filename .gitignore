@@ -20,6 +20,12 @@ logs/*.log.*
 *.swo
 .DS_Store
 
+# AI tools
+.claude/
+.codex/
+.cursor/
+.trellis/
+
 # Environment
 .env
 .venv/
