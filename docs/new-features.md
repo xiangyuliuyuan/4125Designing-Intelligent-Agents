@@ -2,7 +2,7 @@
 
 > 适用版本：v1.1
 
-本文档记录在原始项目基础上新增的三个功能模块。
+本文档记录在原始项目基础上新增的功能模块。
 
 ---
 
@@ -132,3 +132,79 @@ tick=143 event=path_not_found bot=Bot-1 reason=start_blocked
 - `robot/brain.py`：新增避猫决策分支
 - `robot/bot.py`：`thinkAndAct()` 新增 `cats` 参数
 - `simulation/engine.py`：主循环传入 `cats` 列表，并增加基于环形最短距离的 `physical_cat_freeze`
+
+---
+
+## 4. 无头仿真模式
+
+### 背景
+
+GUI 模式下无法自动化运行大批量实验、收集统计数据。需要一种无 Tk 依赖的仿真入口，以便脚本驱动的批量实验和数据采集。
+
+### 实现方案
+
+新增 `run_headless.py`，使用 `FakeCanvas` 替代真实 Tk 画布，完整运行仿真循环并输出统计结果：
+
+```bash
+python run_headless.py --seed 42 --frames 3000
+```
+
+- 支持 `--seed`、`--frames`、`--dt` 等参数
+- 输出包含碰撞次数、猫惊跳次数、冻结事件次数等关键指标
+- 事件日志输出到 `logs/headless.log`，便于事后分析
+
+### 涉及模块
+
+- `run_headless.py`（新增）
+
+---
+
+## 5. 研究问题 1：替代决策架构与实验框架
+
+### 背景
+
+原始项目仅实现了 Subsumption 架构作为机器人决策方式。为回答"不同智能体架构在清扫任务中的表现差异"这一研究问题，需要实现替代决策方案并搭建可复现的实验基础设施。
+
+### 替代决策架构
+
+新增两种与 Subsumption 接口兼容的决策大脑：
+
+**人工势场法（APF）** — `robot/brain_potential_field.py`
+
+- 将各类环境要素（垃圾引力、猫/碎片/机器人斥力、充电站引力）转化为力向量
+- 实时合成合力，直接映射为轮速差
+- 无需训练，纯反应式
+
+**Q-Learning** — `robot/brain_qlearning.py`
+
+- 将传感器输入离散化为状态空间
+- 通过与环境交互学习最优策略
+- 训练后保存 Q-table（JSON 格式），推理时加载使用
+
+### 实验框架
+
+新增 `experiments/` 包，提供从训练到分析的完整流水线：
+
+| 模块 | 功能 |
+|------|------|
+| `train_qlearning.py` | Q-Learning 训练脚本，支持多轮次训练和 Q-table 保存 |
+| `run_experiments.py` | 批量对比实验 runner，支持标准对比、猫数量梯度、训练轮次等实验类型 |
+| `run_generalization.py` | 泛化测试，在未见过的环境配置下评估各算法 |
+| `analyze_results.py` | 统计分析与图表生成（柱状图、箱线图、雷达图、训练曲线等） |
+
+实验产出存放在 `experiments/` 子目录中：
+
+- `qtables/` — 训练好的 Q-table 文件
+- `results/` — 实验 CSV 数据
+- `figures/` — 生成的分析图表
+
+### 涉及模块
+
+- `robot/brain_potential_field.py`（新增）
+- `robot/brain_qlearning.py`（新增）
+- `run_headless.py`（新增，实验框架依赖）
+- `experiments/__init__.py`（新增）
+- `experiments/train_qlearning.py`（新增）
+- `experiments/run_experiments.py`（新增）
+- `experiments/run_generalization.py`（新增）
+- `experiments/analyze_results.py`（新增）

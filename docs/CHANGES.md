@@ -11,7 +11,8 @@
 | Bug 修复（功能缺陷） | 25 项 | [bugfixes.md](bugfixes.md#功能性-bug) |
 | 设计问题修复 | 9 项 | [bugfixes.md](bugfixes.md#设计问题) |
 | 模块化重构 | 2 轮 | [architecture-overview.md](architecture-overview.md) |
-| 新增功能 | 3 项 | [new-features.md](new-features.md) |
+| 新增功能 | 5 项 | [new-features.md](new-features.md) |
+| 研究问题实验 | RQ1 | [new-features.md](new-features.md#5-研究问题-1替代决策架构与实验框架) |
 
 ---
 
@@ -64,11 +65,27 @@ ui/                  # Tkinter 组件（window、renderer、controls、control_p
 | 结构化日志系统 | 将所有 `print()` 替换为双通道日志，`INFO` 写文件，`WARNING` 以上进控制台 |
 | UI 日志级别控件 | 在运行参数区新增两个下拉框，可运行时独立调整文件/控制台日志级别 |
 | 机器人主动避猫 | 机器人新增猫感知能力，猫提前进入 panic 跳离，降低接触概率 |
+| 无头仿真模式 | `run_headless.py` 无 GUI 运行仿真，支持自动化实验和数据采集 |
+| RQ1 替代决策架构与实验框架 | 新增 APF、Q-Learning 两种决策大脑和完整的训练/实验/分析流水线 |
 
 详见 → [new-features.md](new-features.md)
 
 ---
 
+## 研究问题 1 概览
+
+为回答"不同智能体架构在清扫任务中的表现差异"，新增以下内容：
+
+- **替代决策大脑**：人工势场法（`robot/brain_potential_field.py`）和 Q-Learning（`robot/brain_qlearning.py`），均与 Subsumption 接口兼容
+- **无头仿真模式**：`run_headless.py` 无 GUI 运行，支持脚本驱动的批量实验
+- **实验框架**：`experiments/` 包，提供 Q-Learning 训练、批量对比实验、泛化测试和统计分析/图表生成
+
+实验结论：Q-Learning 在清扫效率和泛化能力上表现最优，Subsumption 安全性最高（零猫冻结），APF 居中但稳定性不足。
+
+详见 → [new-features.md](new-features.md#5-研究问题-1替代决策架构与实验框架)、[rq1-report.md](rq1-report.md)
+
+---
+
 ## 测试状态
 
-当前全部 61 个回归测试通过（`python -m unittest -v`）。
+当前全部 61 个回归测试通过（`python -m pytest tests/ -q`）。

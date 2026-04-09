@@ -10,7 +10,7 @@
 
 ```text
 main.py                  # 启动入口 + 兼容导出
-run_headless.py          # 无头模式入口
+run_headless.py          # 无头模式入口（用于自动化实验）
 app/
   bootstrap.py           # 应用装配
   context.py             # 初始仿真状态装配与定时启动
@@ -25,7 +25,9 @@ simulation/
   stats.py               # 统计数据计算
   passive_index.py       # 被动对象索引
 robot/
-  brain.py               # 机器人决策
+  brain.py               # 机器人决策（Subsumption 架构）
+  brain_potential_field.py # 人工势场法决策逻辑 [RQ1]
+  brain_qlearning.py     # Q-Learning 决策逻辑 [RQ1]
   bot.py                 # 机器人实体编排
   sensing.py             # 传感器计算
   motion.py              # 差速运动与边界处理
@@ -44,6 +46,12 @@ ui/
   renderer.py            # 集中绘制实体
   theme.py               # 主题常量
   tooltip.py             # 工具提示
+experiments/             # [RQ1] 实验框架
+  __init__.py
+  train_qlearning.py     # Q-Learning 训练脚本
+  run_experiments.py     # 批量对比实验 runner
+  run_generalization.py  # 泛化测试
+  analyze_results.py     # 统计分析与图表生成
 tests/
   test_regressions.py    # 回归测试集
 logs/
@@ -68,6 +76,8 @@ logs/
   - 负责 Tk 组件创建与绑定。
 - `entities/*`
   - 负责独立环境实体定义。
+- `experiments/*`
+  - 负责研究问题实验基础设施：训练、批量运行、泛化测试和结果分析。
 
 ## 兼容策略
 

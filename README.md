@@ -65,6 +65,7 @@ ui/
 experiments/                  # [研究问题1] 实验框架
   train_qlearning.py     # Q-Learning 训练脚本
   run_experiments.py     # 批量对比实验 runner
+  run_generalization.py  # 泛化测试
   analyze_results.py     # 统计分析 & 图表生成
   qtables/               # 训练好的 Q-table
   results/               # 实验 CSV 数据
@@ -113,9 +114,9 @@ docs/
 
 本项目基于课堂提供的单文件机器人仿真进行扩展，主要改动：
 
-- [**模块化架构**](docs/architecture-overview.md)：从约 1200 行的单体文件重构为 31 个职责明确的模块
+- [**模块化架构**](docs/architecture-overview.md)：从约 1200 行的单体文件重构为 37 个职责明确的模块
 - [**25 项 Bug 修复**](docs/bugfixes.md)：涵盖 A* 寻路、充电系统、运动物理、实体管理
-- [**9 项设计改进 & 3 项新功能**](docs/new-features.md)：结构化日志、运行时日志级别 UI 控件、机器人主动避猫等
+- [**9 项设计改进 & 5 项新功能**](docs/new-features.md)：结构化日志、运行时日志级别 UI 控件、机器人主动避猫、无头仿真模式、RQ1 替代决策架构与实验框架
 - **61 个回归测试**：覆盖所有已修复 Bug 和新功能
 - **Headless 模式**：`run_headless.py` 支持无 GUI 自动化实验
 

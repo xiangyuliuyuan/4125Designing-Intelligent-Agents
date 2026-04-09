@@ -32,7 +32,7 @@ def create_speed_controls(parent, tk_module=None):
     speed_scale = tk_module.Scale(
         frame,
         from_=0.5,
-        to=3.0,
+        to=5.0,
         resolution=0.1,
         orient=tk_module.HORIZONTAL,
         variable=speed_var,
@@ -51,7 +51,7 @@ def create_speed_controls(parent, tk_module=None):
 
     from ui.control_panel import RoundedButton
 
-    presets = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("3x", 3.0)]
+    presets = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("3x", 3.0), ("5x", 5.0)]
     for text, val in presets:
         btn = RoundedButton(
             preset_frame,
@@ -90,23 +90,22 @@ def create_logging_controls(
         anchor="w", padx=6, pady=(4, 2),
     )
 
-    row1 = tk_module.Frame(frame, bg=BG_CARD)
-    row1.pack(fill=tk_module.X, padx=6, pady=(0, 2))
-    tk_module.Label(row1, text="文件:", fg=TEXT_SECONDARY, bg=BG_CARD, font=FONT_SMALL).pack(side=tk_module.LEFT)
+    row = tk_module.Frame(frame, bg=BG_CARD)
+    row.pack(fill=tk_module.X, padx=6, pady=(0, 4))
+
+    tk_module.Label(row, text="文件:", fg=TEXT_SECONDARY, bg=BG_CARD, font=FONT_SMALL).pack(side=tk_module.LEFT)
     file_var = tk_module.StringVar(value=file_level)
     file_other = [l for l in LOG_LEVEL_NAMES if l != file_level]
-    file_menu = tk_module.OptionMenu(row1, file_var, file_level, *file_other)
-    file_menu.config(bg=BTN_NEUTRAL_BG, fg=BTN_NEUTRAL_FG, font=FONT_SMALL, relief="flat", highlightthickness=0)
-    file_menu.pack(side=tk_module.LEFT, padx=5)
+    file_menu = tk_module.OptionMenu(row, file_var, file_level, *file_other)
+    file_menu.config(bg=BTN_NEUTRAL_BG, fg="#000000", font=FONT_SMALL, relief="flat", highlightthickness=0)
+    file_menu.pack(side=tk_module.LEFT, padx=(2, 8))
 
-    row2 = tk_module.Frame(frame, bg=BG_CARD)
-    row2.pack(fill=tk_module.X, padx=6, pady=(0, 4))
-    tk_module.Label(row2, text="控制台:", fg=TEXT_SECONDARY, bg=BG_CARD, font=FONT_SMALL).pack(side=tk_module.LEFT)
+    tk_module.Label(row, text="控制台:", fg=TEXT_SECONDARY, bg=BG_CARD, font=FONT_SMALL).pack(side=tk_module.LEFT)
     console_var = tk_module.StringVar(value=console_level)
     console_other = [l for l in LOG_LEVEL_NAMES if l != console_level]
-    console_menu = tk_module.OptionMenu(row2, console_var, console_level, *console_other)
-    console_menu.config(bg=BTN_NEUTRAL_BG, fg=BTN_NEUTRAL_FG, font=FONT_SMALL, relief="flat", highlightthickness=0)
-    console_menu.pack(side=tk_module.LEFT, padx=5)
+    console_menu = tk_module.OptionMenu(row, console_var, console_level, *console_other)
+    console_menu.config(bg=BTN_NEUTRAL_BG, fg="#000000", font=FONT_SMALL, relief="flat", highlightthickness=0)
+    console_menu.pack(side=tk_module.LEFT, padx=2)
 
     if on_file_change is not None:
         file_var.trace_add("write", lambda *_args: on_file_change(file_var.get()))
@@ -123,7 +122,7 @@ def bind_keyboard_shortcuts(window, speed_var, pause_button, reset_callback, tog
         elif event.keysym in {"r", "R"}:
             reset_callback()
         elif event.keysym in {"plus", "equal"}:
-            speed_var.set(min(3.0, speed_var.get() + 0.1))
+            speed_var.set(min(5.0, speed_var.get() + 0.1))
         elif event.keysym == "minus":
             speed_var.set(max(0.5, speed_var.get() - 0.1))
 
