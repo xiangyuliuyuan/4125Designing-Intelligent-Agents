@@ -10,6 +10,8 @@ from entities import dirt
 from entities.lamp import Lamp
 from robot.bot import Bot
 from robot.brain import Brain
+from robot.brain_potential_field import PotentialFieldBrain
+from robot.brain_qlearning import QLearningBrain
 from simulation.passive_index import count_debris, invalidate_passive_object_index
 from simulation.state import SimulationState
 
@@ -68,10 +70,16 @@ def buttonClicked(x, y, agents):
             agent.y = y
 
 
-def _make_bot(name, astar, chargers):
+def _make_bot(name, astar, chargers, brain_type="subsumption"):
     bot = Bot(name)
     bot.setAStar(astar)
-    bot.setBrain(Brain(bot))
+    if brain_type == "potential_field":
+        brain = PotentialFieldBrain(bot)
+    elif brain_type == "qlearning":
+        brain = QLearningBrain(bot)
+    else:
+        brain = Brain(bot)
+    bot.setBrain(brain)
     return bot
 
 
@@ -85,6 +93,7 @@ def create_world(
     noOfCats=1,
     count=None,
     debris_count_initial=0,
+    brain_type="subsumption",
 ):
     if count is None:
         count = Counter()
@@ -150,7 +159,7 @@ def create_world(
 
     # --- Place bots (avoid debris) ---
     for i in range(noOfBots):
-        bot = _make_bot(f"Bot{i}", state.astar, state.chargers)
+        bot = _make_bot(f"Bot{i}", state.astar, state.chargers, brain_type=brain_type)
         bx, by = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
                                       world_size=width)
         bot.x, bot.y = bx, by
@@ -170,6 +179,7 @@ def createObjects(
     noOfCats=1,
     count=None,
     debris_count_initial=0,
+    brain_type="subsumption",
 ):
     state = create_world(
         canvas,
@@ -181,6 +191,7 @@ def createObjects(
         noOfCats=noOfCats,
         count=count,
         debris_count_initial=debris_count_initial,
+        brain_type=brain_type,
     )
     canvas.bind("<Button-1>", lambda event: buttonClicked(event.x, event.y, state.agents))
     return (

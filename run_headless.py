@@ -158,9 +158,9 @@ def log_cat_signals(agents, cats):
         )
 
 
-def initialise_world(canvas, seed):
+def initialise_world(canvas, seed, brain_type="subsumption"):
     random.seed(seed)
-    simulation_data = create_simulation_data(canvas)
+    simulation_data = create_simulation_data(canvas, brain_type=brain_type)
     return (
         simulation_data["agents"],
         simulation_data["passiveObjects"],
@@ -172,7 +172,7 @@ def initialise_world(canvas, seed):
     )
 
 
-def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAULT_HEADLESS_LOG_NAME, emit_stdout=True):
+def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAULT_HEADLESS_LOG_NAME, emit_stdout=True, brain_type="subsumption"):
     runtime.reset()
     log_path = Path("logs") / log_filename
     reset_headless_log_files(log_path)
@@ -187,7 +187,7 @@ def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAU
 
     canvas = FakeCanvas()
     stats_vars = make_stats_vars()
-    agents, passive_objects, count, cats, debris_count, chargers, start_time = initialise_world(canvas, seed)
+    agents, passive_objects, count, cats, debris_count, chargers, start_time = initialise_world(canvas, seed, brain_type=brain_type)
 
     try:
         for _ in range(frames):
@@ -231,6 +231,7 @@ def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAU
         print(f"collision_detected={event_counts['collision_detected']}")
         print(f"cat.panic_jump={event_counts['cat.panic_jump']}")
         print(f"bot.physical_cat_freeze={event_counts['bot.physical_cat_freeze']}")
+        print(f"dirt_collected={count.dirtCollected}")
 
     reset_logging()
     return {
@@ -241,6 +242,7 @@ def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAU
         "collision_detected": event_counts["collision_detected"],
         "cat.panic_jump": event_counts["cat.panic_jump"],
         "bot.physical_cat_freeze": event_counts["bot.physical_cat_freeze"],
+        "dirt_collected": count.dirtCollected,
         "exit_code": 1 if event_counts["collision_detected"] > 0 else 0,
     }
 
@@ -251,6 +253,7 @@ def main(argv=None):
     parser.add_argument("--dt", type=float, default=FRAME_DT)
     parser.add_argument("--frames", type=int, default=TOTAL_FRAMES)
     parser.add_argument("--log-filename", default=DEFAULT_HEADLESS_LOG_NAME)
+    parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning"])
     args = parser.parse_args(argv)
 
     result = run_simulation(
@@ -259,6 +262,7 @@ def main(argv=None):
         frames=args.frames,
         log_filename=args.log_filename,
         emit_stdout=True,
+        brain_type=args.brain_type,
     )
     return result["exit_code"]
 

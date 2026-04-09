@@ -42,7 +42,9 @@ simulation/
   passive_index.py       # 被动对象空间索引
 robot/
   bot.py                 # 机器人实体（编排各子系统）
-  brain.py               # 决策逻辑（subsumption 架构）
+  brain.py               # 决策逻辑（Subsumption 架构）
+  brain_potential_field.py # 人工势场法决策逻辑 [研究问题1]
+  brain_qlearning.py     # Q-Learning 决策逻辑 [研究问题1]
   sensing.py             # 传感器计算（灯光、机器人、杂物、猫、充电站）
   motion.py              # 差速驱动运动学 & 边界环绕
   cleaning.py            # 垃圾收集逻辑
@@ -60,6 +62,13 @@ ui/
   stats_panel.py         # 统计显示面板
   theme.py               # 颜色 / 样式常量
   tooltip.py             # 工具提示组件
+experiments/                  # [研究问题1] 实验框架
+  train_qlearning.py     # Q-Learning 训练脚本
+  run_experiments.py     # 批量对比实验 runner
+  analyze_results.py     # 统计分析 & 图表生成
+  qtables/               # 训练好的 Q-table
+  results/               # 实验 CSV 数据
+  figures/               # 生成的分析图表
 tests/
   test_regressions.py    # 61 个回归测试
 docs/
@@ -160,6 +169,62 @@ tick=142 event=charging_started bot=Bot-1 charger=Charger-2 battery=587
 tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 ```
 
+## 研究问题
+
+### 研究问题 1：三种智能体架构的清扫性能对比 `[进行中]`
+
+> **问题**：规则型（Subsumption）、反应型（人工势场法）、学习型（Q-Learning）三种根本不同的智能体架构，在清扫任务中表现如何？各自的优劣势是什么？
+
+#### 三种算法
+
+| 算法 | 类型 | 决策方式 | 需要训练 | 实现文件 |
+|------|------|----------|----------|----------|
+| **Subsumption** | 规则型 (Rule-based) | 手工设计的优先级行为层 | 否 | `robot/brain.py` |
+| **人工势场法 (APF)** | 反应型 (Reactive) | 引力/斥力向量实时合成 | 否 | `robot/brain_potential_field.py` |
+| **Q-Learning** | 学习型 (Learning) | 从经验中学习最优Q值策略 | 是 | `robot/brain_qlearning.py` |
+
+#### 实验设计
+- **标准对比**：3种算法 × 10个随机种子 × 1500帧
+- **指标**：垃圾收集量、收集速率、猫碰撞次数、电量耗尽次数
+- **统计检验**：独立样本 t 检验（pairwise comparisons）
+
+#### 初步结果
+
+| 算法 | 平均收集量 | 标准差 | 收集速率 (dirt/frame) |
+|------|-----------|--------|----------------------|
+| Subsumption | 77.0 | ±13.7 | 0.051 |
+| Potential Field | 97.0 | ±14.3 | 0.065 |
+| **Q-Learning** | **104.6** | **±8.5** | **0.070** |
+
+- Q-Learning vs Subsumption：**p < 0.001**（高度显著）
+- Potential Field vs Subsumption：**p = 0.005**（显著）
+- Q-Learning vs Potential Field：p = 0.164（不显著）
+
+#### 实验运行方式
+
+```bash
+# 1. 训练 Q-Learning 智能体
+python experiments/train_qlearning.py --episodes 200 --frames 1500
+
+# 2. 运行三方对比实验
+python experiments/run_experiments.py --brain-types subsumption potential_field qlearning --seeds 10 --frames 1500
+
+# 3. 生成分析图表与统计报告
+python experiments/analyze_results.py --comparison experiments/results/comparison.csv --training experiments/results/training_curve.csv --output-dir experiments/figures/
+```
+
+#### 产出文件
+- `experiments/figures/` — 8张分析图表 + 统计摘要
+- `experiments/results/comparison.csv` — 原始实验数据
+- `experiments/results/training_curve.csv` — Q-Learning训练曲线
+- `experiments/qtables/trained.json` — 训练好的Q表
+
+### 研究问题 2-5：待定
+
+> 每位组员各负责一个研究问题，待分配。
+
+---
+
 ## 作业完成状态
 
 ### 已完成
@@ -171,21 +236,10 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 - [x] 回归测试（61 个）
 - [x] Headless 实验模式基础设施
 - [x] 结构化日志系统
+- [x] **研究问题 1**：三种Brain实现（APF + Q-Learning）、训练、实验、图表生成
 
 ### 待完成
 
-- [ ] **提出 5+ 研究问题**（每人负责一个问题及对应实验）
-- [ ] **实验脚本编写**（基于 `run_headless.py` 扩展，变化参数、多次运行、收集数据）
-- [ ] **数据分析与可视化**（图表、描述性统计、推断性统计）
+- [ ] **研究问题 2-5**（其他组员各负责一个）
 - [ ] **撰写报告**（4000-8000 字，含文献综述、实验设计、结果分析、反思总结、成员分工）
 - [ ] **准备 Presentation**（15 分钟小组演示）
-
-### 建议的研究问题方向
-
-以下问题可直接基于现有代码扩展实验：
-
-1. **机器人数量 vs 清洁效率**：改变机器人数量（1-6），观察单位时间垃圾收集量、碰撞频率、资源竞争情况
-2. **A* 寻路 vs 随机漫步充电**：对比有/无 A* 导航时的充电成功率、电量耗尽次数、平均电量
-3. **猫数量对机器人性能的影响**：改变猫数量（0-8），分析碰撞率、清洁效率下降程度、避猫行为频率
-4. **不同感知/避让策略的比较**：对比纯反应式 vs subsumption 架构下的任务完成率
-5. **充电站数量与布局对能源管理的影响**：改变充电站数量，观察电量耗尽事件和充电等待时间

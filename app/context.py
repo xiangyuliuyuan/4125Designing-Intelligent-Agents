@@ -16,7 +16,7 @@ DEFAULT_WORLD_CONFIG = {
 }
 
 
-def create_simulation_data(canvas, config=None):
+def create_simulation_data(canvas, config=None, brain_type="subsumption"):
     world_config = dict(DEFAULT_WORLD_CONFIG)
     if config:
         world_config.update(config)
@@ -25,6 +25,7 @@ def create_simulation_data(canvas, config=None):
     agents, passive_objects, count, cats, debris_count, chargers, astar = createObjects(
         canvas,
         count=count,
+        brain_type=brain_type,
         **world_config,
     )
     return {
