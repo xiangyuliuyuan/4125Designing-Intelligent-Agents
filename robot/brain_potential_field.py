@@ -200,8 +200,9 @@ class PotentialFieldBrain:
                 )
 
             if self.overlapCount > 0:
-                speedLeft = -5.0 * self.overlap_direction
-                speedRight = -5.0 * self.overlap_direction
+                turn = random.uniform(-1.0, 1.0)
+                speedLeft = -5.0 + turn
+                speedRight = -5.0 - turn
                 self.overlapCount -= 1
             else:
                 self.isOverlapping = False
@@ -286,26 +287,22 @@ class PotentialFieldBrain:
         cat_force = self._repulsive_force_cat(catL, catR)
         if cat_sum > self.cat_avoid_threshold:
             self.isAvoidingCat = True
-            if cat_sum > self.cat_freeze_threshold:
-                self.is_cat_frozen = True
-                self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
-                return 0.0, 0.0, newX, newY
             net_turn += cat_force * 8.0
-            forward_scale = 0.3
+            forward_scale = min(forward_scale, 0.3)
 
         # Repulsive: debris (soft force, complements hard avoidance above)
         debris_force = self._repulsive_force_debris(debrisL, debrisR)
         if debris_sum > self.debris_repulse_threshold:
             self.isAvoidingDebris = True
             net_turn += debris_force * 4.0
-            forward_scale = 0.4
+            forward_scale = min(forward_scale, 0.4)
 
         # Repulsive: other bots
         bot_force = self._repulsive_force_bot(botL, botR)
         if bot_sum > self.bot_repulse_threshold:
             self.isAvoiding = True
             net_turn += bot_force * 1.5
-            forward_scale = 0.7
+            forward_scale = min(forward_scale, 0.7)
 
         # --- Smooth turn signal to prevent jittering ---
         self._smooth_turn = 0.6 * self._smooth_turn + 0.4 * net_turn

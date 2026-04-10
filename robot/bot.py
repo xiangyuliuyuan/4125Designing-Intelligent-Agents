@@ -29,6 +29,7 @@ class Bot:
         self.charger = False
         self.actively_charging = False
         self.sensorPositions = [0, 0, 0, 0]
+        self._update_sensor_positions()
         self.wait_counter = 0
         self.frame_counter = 0
         self.waiting_for_charger = False
@@ -37,6 +38,14 @@ class Bot:
         self.replan_cooldown = 0
         self.replan_cooldown_frames = 20
         self.queuing_at_charger = False
+
+    def _update_sensor_positions(self):
+        self.sensorPositions = [
+            (self.x + 20 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
+            (self.y - 20 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
+            (self.x - 20 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
+            (self.y + 20 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
+        ]
 
     def setAStar(self, astar):
         self.astar = astar
@@ -91,8 +100,8 @@ class Bot:
             self.last_logged_mode = new_mode
 
     def _steer_toward_point(self, target_x, target_y, forward_speed=3.0, turn_speed=2.0):
-        dx = motion._wrapped_delta(target_x, self.x)
-        dy = motion._wrapped_delta(target_y, self.y)
+        dx = motion.wrapped_delta(target_x, self.x)
+        dy = motion.wrapped_delta(target_y, self.y)
         target_angle = math.atan2(dy, dx)
         angle_diff = target_angle - self.theta
 
@@ -553,12 +562,7 @@ class Bot:
 
         canvas.create_polygon(points, fill=body_color, outline="#333344", width=1, tags=self.name)
 
-        self.sensorPositions = [
-            (self.x + 20 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y - 20 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
-            (self.x - 20 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y + 20 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
-        ]
+        self._update_sensor_positions()
 
         canvas.create_oval(self.x - 16, self.y - 16, self.x + 16, self.y + 16, fill=BOT_BODY_COLOR, outline="#b09020", width=1, tags=self.name)
         canvas.create_text(self.x, self.y, text=str(self.battery), fill="#1e1e2e", font=("Helvetica", 9, "bold"), tags=self.name)

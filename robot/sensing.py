@@ -1,25 +1,13 @@
 import math
 
 from entities.cat import Cat
+from robot.motion import wrapped_delta as _wrapped_delta, WORLD_SIZE
 from simulation.passive_index import get_passive_object_index
 
 
 def _is_bot(agent):
     """Check if agent is a Bot without importing to avoid circular imports."""
     return hasattr(agent, 'x') and hasattr(agent, 'y') and hasattr(agent, 'brain')
-
-
-WORLD_SIZE = 1000
-
-
-def _wrapped_delta(a, b):
-    delta = a - b
-    half = WORLD_SIZE / 2
-    if delta > half:
-        delta -= WORLD_SIZE
-    elif delta < -half:
-        delta += WORLD_SIZE
-    return delta
 
 
 def calculate_sensor_values(sensor_positions, obj_x, obj_y, intensity, max_distance=float("inf")):

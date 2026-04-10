@@ -117,9 +117,10 @@ def moveIt(
     pause_button,
     chargers,
     astar,
+    gen=None,
 ):
-    if runtime.reset_flag:
-        runtime.reset_flag = False
+    # If this callback belongs to a stale generation, silently discard it.
+    if gen is not None and gen != runtime.generation:
         return
 
     if not runtime.simulation_running:
@@ -138,6 +139,7 @@ def moveIt(
             pause_button,
             chargers,
             astar,
+            runtime.generation,
         )
         return
 
@@ -174,7 +176,7 @@ def moveIt(
         # The next frame may recover (e.g. transient state issue).
 
     runtime.after_id = canvas.after(
-        int(50 / runtime.simulation_speed),
+        int(50 / max(runtime.simulation_speed, 0.1)),
         moveIt,
         canvas,
         agents,
@@ -188,10 +190,12 @@ def moveIt(
         pause_button,
         chargers,
         astar,
+        runtime.generation,
     )
 
 
 def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button, brain_type="subsumption"):
+    runtime.generation += 1
     runtime.reset_flag = True
     runtime.simulation_running = False
     invalidate_passive_object_index()
@@ -224,7 +228,6 @@ def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button, br
     stats_vars["chargers_count"].config(text=str(len(chargers)))
 
     start_time = time.time()
-    runtime.reset_flag = False
     runtime.simulation_running = True
     runtime.simulation_tick = 0
     pause_button.config(text="⏸ 暂停", bg=BTN_WARNING_BG)

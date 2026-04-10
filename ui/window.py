@@ -82,22 +82,31 @@ def build_side_panel(parent, tk_module=None):
         # macOS delta 通常为 ±1；乘以 15 配合 yscrollincrement=2，
         # 每次滚动约 30px，兼顾速度与流畅度
         if event.delta:
-            scroll_canvas.yview_scroll(int(-event.delta * 15), "units")
+            delta = event.delta
+            if abs(delta) > 10:  # Windows-style large delta
+                delta = delta // 120 if delta != 0 else 0
+            scroll_canvas.yview_scroll(int(-delta * 15), "units")
         elif event.num == 4:
             scroll_canvas.yview_scroll(-8, "units")
         elif event.num == 5:
             scroll_canvas.yview_scroll(8, "units")
 
-    def _bind_wheel(_event):
-        scroll_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    def _bind_wheel(_event=None):
+        scroll_canvas.bind("<MouseWheel>", _on_mousewheel)
+        inner_frame.bind("<MouseWheel>", _on_mousewheel)
         # Linux 支持
-        scroll_canvas.bind_all("<Button-4>", _on_mousewheel)
-        scroll_canvas.bind_all("<Button-5>", _on_mousewheel)
+        scroll_canvas.bind("<Button-4>", lambda e: scroll_canvas.yview_scroll(-3, "units"))
+        scroll_canvas.bind("<Button-5>", lambda e: scroll_canvas.yview_scroll(3, "units"))
+        inner_frame.bind("<Button-4>", lambda e: scroll_canvas.yview_scroll(-3, "units"))
+        inner_frame.bind("<Button-5>", lambda e: scroll_canvas.yview_scroll(3, "units"))
 
-    def _unbind_wheel(_event):
-        scroll_canvas.unbind_all("<MouseWheel>")
-        scroll_canvas.unbind_all("<Button-4>")
-        scroll_canvas.unbind_all("<Button-5>")
+    def _unbind_wheel(_event=None):
+        scroll_canvas.unbind("<MouseWheel>")
+        inner_frame.unbind("<MouseWheel>")
+        scroll_canvas.unbind("<Button-4>")
+        scroll_canvas.unbind("<Button-5>")
+        inner_frame.unbind("<Button-4>")
+        inner_frame.unbind("<Button-5>")
 
     outer.bind("<Enter>", _bind_wheel)
     outer.bind("<Leave>", _unbind_wheel)

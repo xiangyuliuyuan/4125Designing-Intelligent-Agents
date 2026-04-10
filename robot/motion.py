@@ -1,5 +1,7 @@
 import math
 
+WORLD_SIZE = 1000
+
 
 def advance(bot, dt):
     if bot.sl == bot.sr:
@@ -27,10 +29,7 @@ def wrap(bot):
         bot.y += WORLD_SIZE
 
 
-WORLD_SIZE = 1000
-
-
-def _wrapped_delta(a, b):
+def wrapped_delta(a, b):
     """Calculate shortest delta between two coordinates on a wrapping world."""
     delta = a - b
     half = WORLD_SIZE / 2
@@ -43,6 +42,6 @@ def _wrapped_delta(a, b):
 
 def distance_to(bot, obj):
     xx, yy = obj.getLocation()
-    dx = _wrapped_delta(bot.x, xx)
-    dy = _wrapped_delta(bot.y, yy)
+    dx = wrapped_delta(bot.x, xx)
+    dy = wrapped_delta(bot.y, yy)
     return math.sqrt(dx * dx + dy * dy)

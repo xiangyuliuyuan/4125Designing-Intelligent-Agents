@@ -68,4 +68,6 @@ def build_stats_panel(side_panel, tk_module=None):
 def set_initial_stats(stats_vars, passive_objects, agents, cats, chargers, count, start_time, now=None):
     snapshot = build_snapshot(passive_objects, agents, cats, chargers, count, start_time, now=now)
     for key, value in snapshot.items():
-        stats_vars[key].config(text=value)
+        widget = stats_vars.get(key)
+        if widget is not None:
+            widget.config(text=value)

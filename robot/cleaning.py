@@ -22,7 +22,7 @@ def collect_dirt(bot, canvas, passive_objects, count, debris_count, current_time
             trash_type = getattr(obj, "type", "dirt")
             if obj.clean(current_time):
                 canvas.delete(obj.name)
-                to_delete.append(idx)
+                to_delete.append(obj)
                 count.itemCollected(canvas, debris_count)
                 log_event(
                     "INFO",
@@ -47,8 +47,11 @@ def collect_dirt(bot, canvas, passive_objects, count, debris_count, current_time
                     remaining=obj.clean_count,
                 )
 
-    for idx in sorted(to_delete, reverse=True):
-        del passive_objects[idx]
+    for obj in to_delete:
+        try:
+            passive_objects.remove(obj)
+        except ValueError:
+            pass
     if to_delete:
         invalidate_passive_object_index(passive_objects)
     return passive_objects

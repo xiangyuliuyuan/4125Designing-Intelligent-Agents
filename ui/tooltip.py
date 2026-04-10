@@ -81,22 +81,25 @@ class CanvasTooltip:
 
     def _show(self, x, y, text):
         self._hide()
-        self._tip_window = tw = tk.Toplevel(self.canvas)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
+        try:
+            self._tip_window = tw = tk.Toplevel(self.canvas)
+            tw.wm_overrideredirect(True)
+            tw.wm_geometry(f"+{x}+{y}")
 
-        frame = tk.Frame(tw, bg=BG_CARD, padx=8, pady=6, relief="solid", bd=1)
-        frame.pack()
+            frame = tk.Frame(tw, bg=BG_CARD, padx=8, pady=6, relief="solid", bd=1)
+            frame.pack()
 
-        label = tk.Label(
-            frame,
-            text=text,
-            fg=TEXT_PRIMARY,
-            bg=BG_CARD,
-            font=FONT_SMALL,
-            justify="left",
-        )
-        label.pack()
+            label = tk.Label(
+                frame,
+                text=text,
+                fg=TEXT_PRIMARY,
+                bg=BG_CARD,
+                font=FONT_SMALL,
+                justify="left",
+            )
+            label.pack()
+        except Exception:
+            return  # Silently skip tooltip in non-Tk environments
 
     def _hide(self, event=None):
         self._current_tag = None

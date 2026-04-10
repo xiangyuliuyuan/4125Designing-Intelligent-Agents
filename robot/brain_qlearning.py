@@ -40,7 +40,7 @@ class QLearningBrain:
         self.epsilon_decay = epsilon_decay
 
         self.q_table = defaultdict(float)
-        self.training = True
+        self.training = False
 
         # Episode tracking
         self.last_state = None
@@ -86,12 +86,12 @@ class QLearningBrain:
         else:
             charger_dir = "right"
 
-        # Battery level (4 granular buckets for better battery management)
-        if battery > 700:
+        # Battery level (4 granular buckets aligned with bot.battery_low_threshold=600)
+        if battery > 800:
             battery_level = "high"
-        elif battery > 400:
+        elif battery > 600:
             battery_level = "medium"
-        elif battery > 200:
+        elif battery > 300:
             battery_level = "low"
         else:
             battery_level = "critical"
@@ -139,13 +139,9 @@ class QLearningBrain:
         self.pending_reward += reward
 
     def end_episode(self):
-        # Final Q-update for the last step
-        if self.training and self.last_state is not None and self.last_action is not None:
-            key = (self.last_state, self.last_action)
-            self.q_table[key] += self.alpha * (
-                self.pending_reward - self.q_table[key]
-            )
-        # Reset episode state
+        # For truncated (non-terminal) episodes, skip the terminal Q-update
+        # to avoid incorrectly dropping future value from the Bellman equation.
+        # Just reset pending state without updating.
         self.last_state = None
         self.last_action = None
         self.pending_reward = 0.0

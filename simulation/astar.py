@@ -148,13 +148,15 @@ class AStar:
                     if obstacle_map[current[0] + dx][current[1]] or obstacle_map[current[0]][current[1] + dy]:
                         continue
 
-                tentative_g = current_cost + cost
+                tentative_g = g_score[current] + cost
                 if tentative_g >= g_score.get(neighbor, math.inf):
                     continue
 
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g
-                heapq.heappush(open_set, (tentative_g, neighbor))
+                h = min(self.heuristic(neighbor, t) for t in remaining_targets) if remaining_targets else 0.0
+                f = tentative_g + h
+                heapq.heappush(open_set, (f, neighbor))
 
         results = {}
         for target_grid, keys in target_entries.items():

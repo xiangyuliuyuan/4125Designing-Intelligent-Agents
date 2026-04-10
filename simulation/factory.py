@@ -70,7 +70,7 @@ def buttonClicked(x, y, agents):
             agent.y = y
 
 
-def _make_bot(name, astar, chargers, brain_type="subsumption"):
+def _make_bot(name, astar, brain_type="subsumption"):
     bot = Bot(name)
     bot.setAStar(astar)
     if brain_type == "potential_field":
@@ -159,7 +159,7 @@ def create_world(
 
     # --- Place bots (avoid debris) ---
     for i in range(noOfBots):
-        bot = _make_bot(f"Bot{i}", state.astar, state.chargers, brain_type=brain_type)
+        bot = _make_bot(f"Bot{i}", state.astar, brain_type=brain_type)
         bx, by = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
                                       world_size=width)
         bot.x, bot.y = bx, by
@@ -207,7 +207,7 @@ def createObjects(
 
 def add_bot(canvas, agents, passiveObjects, astar, chargers, brain_type="subsumption"):
     bot_num = len(agents)
-    bot = _make_bot(f"Bot{bot_num}", astar, chargers, brain_type=brain_type)
+    bot = _make_bot(f"Bot{bot_num}", astar, brain_type=brain_type)
     bx, by = _find_clear_position(passiveObjects, _DEBRIS_CLEARANCE)
     bot.x, bot.y = bx, by
     agents.append(bot)

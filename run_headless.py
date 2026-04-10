@@ -71,6 +71,11 @@ class FakeCanvas:
     def winfo_height(self):
         return self.height
 
+    def __getattr__(self, name):
+        if name.startswith("create_"):
+            return lambda *a, **kw: self._make_item_id()
+        return lambda *a, **kw: None
+
 
 class FakeStatLabel:
     def __init__(self):

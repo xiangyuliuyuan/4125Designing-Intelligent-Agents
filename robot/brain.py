@@ -104,6 +104,7 @@ class Brain:
             if self.isAvoiding:
                 self.isAvoiding = False
                 self.avoidCount = 0
+                self.turn_angle_sum = 0
             if self.isAvoidingDebris:
                 self.isAvoidingDebris = False
             if not self.isOverlapping:
@@ -121,8 +122,9 @@ class Brain:
                 )
 
             if self.overlapCount > 0:
-                speedLeft = -5.0 * self.overlap_direction
-                speedRight = -5.0 * self.overlap_direction
+                turn = random.uniform(-1.0, 1.0)
+                speedLeft = -5.0 + turn
+                speedRight = -5.0 - turn
                 self.overlapCount -= 1
             else:
                 self.isOverlapping = False

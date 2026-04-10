@@ -29,7 +29,7 @@ CAT_JUMP_TOP_MARGIN = CAT_JUMP_LANDING_MARGIN
 # ── Bot rendering ───────────────────────────────────────
 
 def _battery_color(battery):
-    ratio = battery / BATTERY_MAX
+    ratio = max(0.0, min(1.0, battery / BATTERY_MAX)) if BATTERY_MAX > 0 else 0.0
     if ratio > 0.5:
         return BATTERY_HIGH
     elif ratio > 0.2:
@@ -47,10 +47,11 @@ def draw_bot_battery_bar(canvas, bot):
         bx, by, bx + bar_width, by + bar_height,
         fill=BATTERY_BG, outline="", tags=bot.name,
     )
-    fill_width = max(1, bar_width * (bot.battery / BATTERY_MAX))
+    battery = max(0, min(bot.battery, BATTERY_MAX))
+    fill_width = max(0, bar_width * (battery / BATTERY_MAX))
     canvas.create_rectangle(
         bx, by, bx + fill_width, by + bar_height,
-        fill=_battery_color(bot.battery), outline="", tags=bot.name,
+        fill=_battery_color(battery), outline="", tags=bot.name,
     )
 
 

@@ -157,8 +157,14 @@ class RoundedButton:
         self._canvas.bind("<Enter>", self._on_enter)
         self._canvas.bind("<Leave>", self._on_leave)
 
+    _PROXIED = {"grid", "grid_remove", "grid_info", "place", "place_info", "pack", "pack_info",
+                "winfo_reqwidth", "winfo_reqheight", "winfo_width", "winfo_height",
+                "update_idletasks", "after", "destroy"}
+
     def __getattr__(self, name):
-        return getattr(self._canvas, name)
+        if name in self._PROXIED:
+            return getattr(self._canvas, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def pack(self, *args, **kwargs):
         return self._canvas.pack(*args, **kwargs)

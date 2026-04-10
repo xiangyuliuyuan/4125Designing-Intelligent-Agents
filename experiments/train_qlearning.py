@@ -68,12 +68,28 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
                     agent.brain.q_table.update(shared_qtable)
                 ql_brains.append(agent.brain)
 
-        prev_dirt = count.dirtCollected
+        # Wrap each agent's collectDirt to track per-bot dirt collection
+        for agent in agents:
+            agent._personal_dirt_delta = 0
+            original_collect = agent.collectDirt
+            def _make_wrapper(ag, orig):
+                def wrapper(canvas, passiveObjects, cnt, debris_cnt, current_time=None):
+                    before = cnt.dirtCollected
+                    result = orig(canvas, passiveObjects, cnt, debris_cnt, current_time=current_time)
+                    ag._personal_dirt_delta += cnt.dirtCollected - before
+                    return result
+                return wrapper
+            agent.collectDirt = _make_wrapper(agent, original_collect)
+
         episode_reward = 0.0
         depleted_bots = set()  # Track which bots already got depleted penalty
 
         for frame in range(frames):
             runtime.simulation_tick += 1
+
+            # Reset per-bot dirt delta for this frame
+            for agent in agents:
+                agent._personal_dirt_delta = 0
 
             passive_objects, snapshot = advance_simulation_frame(
                 canvas, agents, passive_objects, count, cats,
@@ -81,17 +97,14 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
                 dt=1.0, now=start_time + runtime.simulation_tick
             )
 
-            # Calculate reward
-            new_dirt = count.dirtCollected
-            dirt_delta = new_dirt - prev_dirt
-            prev_dirt = new_dirt
-
+            # Calculate per-bot reward using individual dirt contribution
             for brain in ql_brains:
                 reward = -0.1  # time penalty
                 bot = brain.bot
 
-                if dirt_delta > 0:
-                    reward += 10.0 * dirt_delta
+                bot_dirt = getattr(bot, '_personal_dirt_delta', 0)
+                if bot_dirt > 0:
+                    reward += 10.0 * bot_dirt
                 # Check battery depletion — penalise only once per episode
                 if bot.battery <= 0 and bot.name not in depleted_bots:
                     reward -= 20.0
@@ -106,9 +119,19 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
         # Decay epsilon (linear)
         epsilon = max(epsilon_end, epsilon - epsilon_decay_per_episode)
 
-        # Save Q-table from first brain (they share)
+        # Merge all brains' Q-tables (average overlapping keys, keep unique)
         if ql_brains:
-            shared_qtable = dict(ql_brains[0].q_table)
+            merged = {}
+            counts = {}
+            for brain in ql_brains:
+                for key, val in brain.q_table.items():
+                    if key in merged:
+                        merged[key] += val
+                        counts[key] += 1
+                    else:
+                        merged[key] = val
+                        counts[key] = 1
+            shared_qtable = {k: v / counts[k] for k, v in merged.items()}
 
         dirt_collected = count.dirtCollected
         csv_rows.append({

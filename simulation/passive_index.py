@@ -12,7 +12,7 @@ from entities.lamp import Lamp
 class PassiveObjectIndex:
     passive_objects: list
     size: int
-    fingerprint: tuple[int, int, int, int, int]
+    generation: int
     debris_objects: tuple[Any, ...]
     lamp_objects: tuple[Lamp, ...]
     charger_objects: tuple[Charger, ...]
@@ -21,14 +21,7 @@ class PassiveObjectIndex:
 
 
 _cached_index: PassiveObjectIndex | None = None
-
-
-def _fingerprint(passive_objects):
-    size = len(passive_objects)
-    if size == 0:
-        return (0, 0, 0, 0, 0)
-    sample_points = (0, size // 3, (2 * size) // 3, size - 1)
-    return (size, *(id(passive_objects[idx]) for idx in sample_points))
+_generation: int = 0
 
 
 def _build_index(passive_objects):
@@ -50,7 +43,7 @@ def _build_index(passive_objects):
     return PassiveObjectIndex(
         passive_objects=passive_objects,
         size=len(passive_objects),
-        fingerprint=_fingerprint(passive_objects),
+        generation=_generation,
         debris_objects=tuple(debris_objects),
         lamp_objects=tuple(lamp_objects),
         charger_objects=tuple(charger_objects),
@@ -61,11 +54,10 @@ def _build_index(passive_objects):
 
 def get_passive_object_index(passive_objects):
     global _cached_index
-    current_fingerprint = _fingerprint(passive_objects)
     if (
         _cached_index is not None
         and _cached_index.passive_objects is passive_objects
-        and _cached_index.fingerprint == current_fingerprint
+        and _cached_index.generation == _generation
     ):
         return _cached_index
 
@@ -74,7 +66,8 @@ def get_passive_object_index(passive_objects):
 
 
 def invalidate_passive_object_index(passive_objects=None):
-    global _cached_index
+    global _cached_index, _generation
+    _generation += 1
     if _cached_index is None:
         return
     if passive_objects is None or _cached_index.passive_objects is passive_objects:

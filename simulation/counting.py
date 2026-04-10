@@ -26,6 +26,12 @@ class Counter:
         if self.debris_label:
             self.debris_label.set(str(current_debris))
 
-    def itemCollected(self, canvas, debris_count):
+    def itemCollected(self, *_args):
+        """Increment the collected-dirt counter.
+
+        Accepts (and ignores) any positional arguments for backward
+        compatibility with call sites that still pass ``canvas`` and
+        ``debris_count``.
+        """
         self.dirtCollected += 1
         self.update_collected_display()
