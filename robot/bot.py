@@ -540,17 +540,6 @@ class Bot:
         )
         from ui.theme import BOT_COLOR_AVOIDING, BOT_COLOR_CHARGING, BOT_COLOR_DEPLETED, BOT_COLOR_NORMAL, BOT_BODY_COLOR
 
-        points = [
-            (self.x + 30 * math.sin(self.theta)) - 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y - 30 * math.cos(self.theta)) - 30 * math.cos((math.pi / 2.0) - self.theta),
-            (self.x - 30 * math.sin(self.theta)) - 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y + 30 * math.cos(self.theta)) - 30 * math.cos((math.pi / 2.0) - self.theta),
-            (self.x - 30 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y + 30 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
-            (self.x + 30 * math.sin(self.theta)) + 30 * math.sin((math.pi / 2.0) - self.theta),
-            (self.y - 30 * math.cos(self.theta)) + 30 * math.cos((math.pi / 2.0) - self.theta),
-        ]
-
         if self.battery <= 0:
             body_color = BOT_COLOR_DEPLETED
         elif hasattr(self, "brain") and self.brain.isAvoiding:
@@ -560,11 +549,18 @@ class Bot:
         else:
             body_color = BOT_COLOR_NORMAL
 
-        canvas.create_polygon(points, fill=body_color, outline="#333344", width=1, tags=self.name)
+        # Circular robot vacuum body
+        bot_radius = 28
+        canvas.create_oval(
+            self.x - bot_radius, self.y - bot_radius,
+            self.x + bot_radius, self.y + bot_radius,
+            fill=body_color, outline="#333344", width=2, tags=self.name,
+        )
 
         self._update_sensor_positions()
 
-        canvas.create_oval(self.x - 16, self.y - 16, self.x + 16, self.y + 16, fill=BOT_BODY_COLOR, outline="#b09020", width=1, tags=self.name)
+        # Inner gold disc (centered on bot)
+        canvas.create_oval(self.x - 14, self.y - 14, self.x + 14, self.y + 14, fill=BOT_BODY_COLOR, outline="#b09020", width=1, tags=self.name)
         canvas.create_text(self.x, self.y, text=str(self.battery), fill="#1e1e2e", font=("Helvetica", 9, "bold"), tags=self.name)
 
         wheel1PosX = self.x - 30 * math.sin(self.theta)
@@ -575,12 +571,16 @@ class Bot:
         wheel2PosY = self.y - 30 * math.cos(self.theta)
         canvas.create_oval(wheel2PosX - 4, wheel2PosY - 4, wheel2PosX + 4, wheel2PosY + 4, fill="#44cc44", outline="#229922", tags=self.name)
 
-        sensor1PosX = self.sensorPositions[0]
-        sensor1PosY = self.sensorPositions[1]
-        sensor2PosX = self.sensorPositions[2]
-        sensor2PosY = self.sensorPositions[3]
-        canvas.create_oval(sensor1PosX - 3, sensor1PosY - 3, sensor1PosX + 3, sensor1PosY + 3, fill="#f0d060", outline="#c0a030", tags=self.name)
-        canvas.create_oval(sensor2PosX - 3, sensor2PosY - 3, sensor2PosX + 3, sensor2PosY + 3, fill="#f0d060", outline="#c0a030", tags=self.name)
+        # Draw sensor dots at the front edge of the circular body
+        fwd_dist = 28
+        side_dist = 10
+        cos_t, sin_t = math.cos(self.theta), math.sin(self.theta)
+        s1x = self.x + cos_t * fwd_dist + sin_t * side_dist
+        s1y = self.y + sin_t * fwd_dist - cos_t * side_dist
+        s2x = self.x + cos_t * fwd_dist - sin_t * side_dist
+        s2y = self.y + sin_t * fwd_dist + cos_t * side_dist
+        canvas.create_oval(s1x - 3, s1y - 3, s1x + 3, s1y + 3, fill="#f0d060", outline="#c0a030", tags=self.name)
+        canvas.create_oval(s2x - 3, s2y - 3, s2x + 3, s2y + 3, fill="#f0d060", outline="#c0a030", tags=self.name)
 
         # Enhanced visualizations
         draw_bot_path(canvas, self)

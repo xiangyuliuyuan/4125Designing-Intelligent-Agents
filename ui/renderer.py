@@ -73,7 +73,7 @@ def draw_bot_direction_arrow(canvas, bot):
     tip_y = bot.y + math.sin(bot.theta) * arrow_len
     canvas.create_line(
         bot.x, bot.y, tip_x, tip_y,
-        fill="#ffffff", width=2, arrow="last", arrowshape=(8, 10, 4),
+        fill="#333344", width=2, arrow="last", arrowshape=(8, 10, 4),
         tags=bot.name,
     )
 
@@ -100,34 +100,35 @@ def draw_cat(canvas, cat):
         size = CAT_NORMAL_SIZE
         color = CAT_COLOR_NORMAL
 
-    # Body
+    # Ears drawn first so the body covers the base — tips protrude naturally
+    ear_h = 10
+    ear_points = [
+        (cat.x - 14, cat.y - size + 4),
+        (cat.x - 7, cat.y - size - ear_h),
+        (cat.x, cat.y - size + 4),
+    ]
+    canvas.create_polygon(ear_points, fill=color, outline="#d07030", width=1, tags=cat.name)
+    ear_points_r = [
+        (cat.x, cat.y - size + 4),
+        (cat.x + 7, cat.y - size - ear_h),
+        (cat.x + 14, cat.y - size + 4),
+    ]
+    canvas.create_polygon(ear_points_r, fill=color, outline="#d07030", width=1, tags=cat.name)
+
+    # Inner ears (pink)
+    canvas.create_polygon(
+        [(cat.x - 12, cat.y - size + 4), (cat.x - 7, cat.y - size - ear_h + 3), (cat.x - 2, cat.y - size + 4)],
+        fill="#ffb0b0", tags=cat.name,
+    )
+    canvas.create_polygon(
+        [(cat.x + 2, cat.y - size + 4), (cat.x + 7, cat.y - size - ear_h + 3), (cat.x + 12, cat.y - size + 4)],
+        fill="#ffb0b0", tags=cat.name,
+    )
+
+    # Body (drawn after ears so it covers ear bases)
     canvas.create_oval(
         cat.x - size, cat.y - size, cat.x + size, cat.y + size,
         fill=color, outline="#d07030", width=1, tags=cat.name,
-    )
-
-    # Ears
-    ear_points = [
-        (cat.x - 12, cat.y - size),
-        (cat.x - 6, cat.y - size - 12),
-        (cat.x, cat.y - size),
-    ]
-    canvas.create_polygon(ear_points, fill=color, outline="#d07030", tags=cat.name)
-    ear_points_r = [
-        (cat.x, cat.y - size),
-        (cat.x + 6, cat.y - size - 12),
-        (cat.x + 12, cat.y - size),
-    ]
-    canvas.create_polygon(ear_points_r, fill=color, outline="#d07030", tags=cat.name)
-
-    # Inner ears
-    canvas.create_polygon(
-        [(cat.x - 10, cat.y - size), (cat.x - 6, cat.y - size - 8), (cat.x - 2, cat.y - size)],
-        fill="#ffb0b0", tags=cat.name,
-    )
-    canvas.create_polygon(
-        [(cat.x + 2, cat.y - size), (cat.x + 6, cat.y - size - 8), (cat.x + 10, cat.y - size)],
-        fill="#ffb0b0", tags=cat.name,
     )
 
     # Eyes
