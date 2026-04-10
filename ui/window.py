@@ -86,27 +86,41 @@ def build_side_panel(parent, tk_module=None):
             if abs(delta) > 10:  # Windows-style large delta
                 delta = delta // 120 if delta != 0 else 0
             scroll_canvas.yview_scroll(int(-delta * 15), "units")
-        elif event.num == 4:
-            scroll_canvas.yview_scroll(-8, "units")
-        elif event.num == 5:
-            scroll_canvas.yview_scroll(8, "units")
 
     def _bind_wheel(_event=None):
-        scroll_canvas.bind("<MouseWheel>", _on_mousewheel)
-        inner_frame.bind("<MouseWheel>", _on_mousewheel)
-        # Linux 支持
-        scroll_canvas.bind("<Button-4>", lambda e: scroll_canvas.yview_scroll(-3, "units"))
-        scroll_canvas.bind("<Button-5>", lambda e: scroll_canvas.yview_scroll(3, "units"))
-        inner_frame.bind("<Button-4>", lambda e: scroll_canvas.yview_scroll(-3, "units"))
-        inner_frame.bind("<Button-5>", lambda e: scroll_canvas.yview_scroll(3, "units"))
+        root = scroll_canvas.winfo_toplevel()
+        def _guarded_mousewheel(event):
+            try:
+                w = event.widget
+                while w:
+                    if w is outer:
+                        _on_mousewheel(event)
+                        return "break"
+                    w = w.master
+            except Exception:
+                pass
+        scroll_canvas._wheel_handler = _guarded_mousewheel
+        root.bind_all("<MouseWheel>", _guarded_mousewheel)
+        # Linux scroll buttons
+        root.bind_all("<Button-4>", lambda e: _guarded_mousewheel_linux(e, -3))
+        root.bind_all("<Button-5>", lambda e: _guarded_mousewheel_linux(e, 3))
+
+    def _guarded_mousewheel_linux(event, units):
+        try:
+            w = event.widget
+            while w:
+                if w is outer:
+                    scroll_canvas.yview_scroll(units, "units")
+                    return "break"
+                w = w.master
+        except Exception:
+            pass
 
     def _unbind_wheel(_event=None):
-        scroll_canvas.unbind("<MouseWheel>")
-        inner_frame.unbind("<MouseWheel>")
-        scroll_canvas.unbind("<Button-4>")
-        scroll_canvas.unbind("<Button-5>")
-        inner_frame.unbind("<Button-4>")
-        inner_frame.unbind("<Button-5>")
+        root = scroll_canvas.winfo_toplevel()
+        root.unbind_all("<MouseWheel>")
+        root.unbind_all("<Button-4>")
+        root.unbind_all("<Button-5>")
 
     outer.bind("<Enter>", _bind_wheel)
     outer.bind("<Leave>", _unbind_wheel)

@@ -196,7 +196,6 @@ def moveIt(
 
 def reset_simulation(canvas, main_frame, stats_vars, speed_var, pause_button, brain_type="subsumption"):
     runtime.generation += 1
-    runtime.reset_flag = True
     runtime.simulation_running = False
     invalidate_passive_object_index()
 

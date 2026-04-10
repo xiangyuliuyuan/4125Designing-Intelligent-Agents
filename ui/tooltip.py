@@ -99,10 +99,20 @@ class CanvasTooltip:
             )
             label.pack()
         except Exception:
-            return  # Silently skip tooltip in non-Tk environments
+            if self._tip_window:
+                try:
+                    self._tip_window.destroy()
+                except Exception:
+                    pass
+                self._tip_window = None
+            return
 
     def _hide(self, event=None):
         self._current_tag = None
-        if self._tip_window:
-            self._tip_window.destroy()
-            self._tip_window = None
+        tw = self._tip_window
+        self._tip_window = None
+        if tw:
+            try:
+                tw.destroy()
+            except Exception:
+                pass

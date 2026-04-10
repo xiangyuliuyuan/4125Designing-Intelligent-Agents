@@ -131,7 +131,8 @@ def train(episodes=300, frames=2000, alpha=0.1, gamma=0.95,
                     else:
                         merged[key] = val
                         counts[key] = 1
-            shared_qtable = {k: v / counts[k] for k, v in merged.items()}
+            from collections import defaultdict
+            shared_qtable = defaultdict(float, {k: v / counts[k] for k, v in merged.items()})
 
         dirt_collected = count.dirtCollected
         csv_rows.append({

@@ -64,6 +64,13 @@ class QLearningBrain:
         self._debris_back_frames = 5
         self._debris_turn_frames = 18
 
+    def _reset_q_tracking(self):
+        """Reset Q-learning tracking state so accumulated rewards don't leak
+        across safety override frames."""
+        self.last_state = None
+        self.last_action = None
+        self.pending_reward = 0.0
+
     def _discretize_state(self, lightL, lightR, chargerL, chargerR, battery,
                           debrisL, debrisR, botL, botR, catL, catR):
         # Light direction
@@ -186,24 +193,32 @@ class QLearningBrain:
         # 1. Cat freeze
         if self.force_cat_freeze:
             self.is_cat_frozen = True
+            self._reset_q_tracking()
             return 0.0, 0.0, newX, newY
 
-        # 2. Bot overlap - back away
-        if bot_sum > 20000:
+        # 2. Bot overlap - back away with timeout
+        if bot_sum > 20000 and not self.isOverlapping:
             self.isOverlapping = True
-            self.overlapCount += 1
-            return -5.0, -5.0, newX, newY
-        else:
-            self.isOverlapping = False
-            self.overlapCount = 0
+            self.isAvoiding = True
+            self.overlapCount = 15
+        if self.isOverlapping:
+            self.overlapCount -= 1
+            if self.overlapCount <= 0 or bot_sum <= 20000:
+                self.isOverlapping = False
+                self.isAvoiding = False
+            turn = random.uniform(-1.0, 1.0)
+            self._reset_q_tracking()
+            return -5.0 + turn, -5.0 - turn, newX, newY
 
         # 3. Cat avoidance
         if cat_sum > 3000:
             self.is_cat_frozen = True
             self.isAvoidingCat = True
+            self._reset_q_tracking()
             return 0.0, 0.0, newX, newY
         elif cat_sum > 700:
             self.isAvoidingCat = True
+            self._reset_q_tracking()
             if catL > catR:
                 return 3.0, -3.0, newX, newY
             else:
@@ -242,7 +257,11 @@ class QLearningBrain:
             if self._debris_avoid_counter <= 0:
                 self._debris_avoid_active = False
                 self.isAvoidingDebris = False
+            self._reset_q_tracking()
             return float(speedLeft), float(speedRight), newX, newY
+
+        # Bot avoidance flag for mode/color display (Bug 4)
+        self.isAvoiding = bot_sum > 3000
 
         # --- Q-learning update for previous step ---
         state = self._discretize_state(

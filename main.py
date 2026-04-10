@@ -34,7 +34,7 @@ from ui.window import initialise as _initialise
 # Runtime state aliases — always delegate to the runtime module directly
 # to avoid stale-copy bugs with Python's immutable scalars.
 _RUNTIME_ATTRS = frozenset((
-    "simulation_running", "simulation_speed", "reset_flag", "after_id", "simulation_tick",
+    "simulation_running", "simulation_speed", "after_id", "simulation_tick", "generation",
 ))
 
 
@@ -67,9 +67,9 @@ def __getattr__(name):
 
 simulation_running = None  # sentinel; actual access should go through runtime
 simulation_speed = None
-reset_flag = None
 after_id = None
 simulation_tick = None
+generation = None
 
 
 def _sync_to_runtime():

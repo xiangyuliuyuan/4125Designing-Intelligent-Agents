@@ -163,8 +163,6 @@ def run_app(tk_module=None):
             _configure_qlearning_agents(simulation_data["agents"], brain_type_var.get())
             tooltip.update_data(simulation_data["agents"], simulation_data["cats"], simulation_data["chargers"])
 
-            if runtime.after_id is not None:
-                canvas.after_cancel(runtime.after_id)
             schedule_simulation(
                 canvas,
                 simulation_data,

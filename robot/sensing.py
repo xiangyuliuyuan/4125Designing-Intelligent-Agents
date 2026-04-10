@@ -1,7 +1,7 @@
 import math
 
 from entities.cat import Cat
-from robot.motion import wrapped_delta as _wrapped_delta, WORLD_SIZE
+from robot.motion import wrapped_delta as _wrapped_delta
 from simulation.passive_index import get_passive_object_index
 
 
