@@ -146,9 +146,9 @@ class QLearningBrain:
         self.pending_reward += reward
 
     def end_episode(self):
-        # For truncated (non-terminal) episodes, skip the terminal Q-update
-        # to avoid incorrectly dropping future value from the Bellman equation.
-        # Just reset pending state without updating.
+        if self.training and self.last_state is not None and self.last_action is not None:
+            key = (self.last_state, self.last_action)
+            self.q_table[key] += self.alpha * (self.pending_reward - self.q_table[key])
         self.last_state = None
         self.last_action = None
         self.pending_reward = 0.0

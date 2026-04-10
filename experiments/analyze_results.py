@@ -1,6 +1,7 @@
 """Analyze experiment CSV results and generate publication-quality charts."""
 
 import argparse
+import ast
 import csv
 import json
 import sys
@@ -40,7 +41,15 @@ BRAIN_ORDER = ["Subsumption", "Potential Field", "Q-Learning"]
 COLORS = {"Subsumption": "#4C72B0", "Potential Field": "#DD8452", "Q-Learning": "#55A868"}
 
 # Action names used in Q-table visualisation
-ACTION_NAMES = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "GRAB", "GO_HOME"]
+ACTION_NAMES = [
+    "FORWARD",
+    "TURN_LEFT",
+    "TURN_RIGHT",
+    "SLOW_FORWARD",
+    "SEEK_LIGHT_LEFT",
+    "SEEK_LIGHT_RIGHT",
+    "STOP",
+]
 
 # Mapping from raw CSV brain_type values to canonical Title Case labels
 _BRAIN_ALIASES = {
@@ -199,7 +208,7 @@ def chart_box_collection_rate(rows, output_dir):
     colors = [COLORS.get(l, "#999999") for l in labels]
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    bp = ax.boxplot(vals, patch_artist=True, labels=labels, widths=0.5)
+    bp = ax.boxplot(vals, patch_artist=True, tick_labels=labels, widths=0.5)
     for patch, c in zip(bp["boxes"], colors):
         patch.set_facecolor(c)
         patch.set_alpha(0.75)
@@ -620,16 +629,22 @@ def chart_line_training_duration(rows, output_dir, comparison_rows=None):
 def _parse_qtable(path: str):
     """Parse a Q-table JSON file into {(state_tuple, action_index): q_value}.
 
-    Keys in the JSON have the form:
-        "('left', 'none', 'high', 'low', 'low', 'low'), 0"
+    Supported key formats:
+    - JSON arrays written by `QLearningBrain.save_qtable()`
+    - Legacy tuple-string keys from older experiment snapshots
     """
     with open(path, encoding="utf-8") as fh:
         raw = json.load(fh)
 
     parsed = {}
     for key_str, value in raw.items():
-        # Split on the last comma before the action integer
-        # Format: "(<state tuple>), <action>"
+        try:
+            state_list, action = json.loads(key_str)
+            parsed[(tuple(state_list), int(action))] = float(value)
+            continue
+        except Exception:
+            pass
+
         last_paren = key_str.rfind(")")
         if last_paren == -1:
             continue
@@ -637,15 +652,10 @@ def _parse_qtable(path: str):
         action_part = key_str[last_paren + 1:].strip().lstrip(",").strip()
         try:
             action = int(action_part)
-        except ValueError:
-            continue
-        # Parse the state tuple from its string representation
-        # e.g. "('left', 'none', 'high', 'low', 'low', 'low')"
-        try:
-            state_tuple = eval(state_part)  # noqa: S307
+            state_tuple = ast.literal_eval(state_part)
         except Exception:
             continue
-        parsed[(state_tuple, action)] = float(value)
+        parsed[(tuple(state_tuple), action)] = float(value)
 
     return parsed
 
@@ -677,7 +687,7 @@ def chart_heatmap_policy(qtable_path, output_dir):
     # State tuple structure: (dirt_direction, cat_direction, battery_level,
     #                         cat_danger, dirt_density, exploration_status)
     # We want battery_level (index 2) and cat_danger (index 3)
-    battery_levels = ["high", "medium", "low"]
+    battery_levels = ["high", "medium", "low", "critical"]
     cat_danger_levels = ["low", "medium", "high"]
 
     # For each (battery, cat_danger), count best actions
@@ -695,8 +705,7 @@ def chart_heatmap_policy(qtable_path, output_dir):
     # Build the heatmap matrix
     n_actions = len(ACTION_NAMES)
     # Colour map: one colour per action
-    action_colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3"]
-    # Extend if more actions than colours
+    action_colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3"]
     while len(action_colors) < n_actions:
         action_colors.append("#999999")
 
@@ -753,7 +762,7 @@ def chart_bar_action_distribution(qtable_path, output_dir):
     values = [counts.get(a, 0) for a in actions]
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3"]
+    colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3"]
     while len(colors) < len(actions):
         colors.append("#999999")
 

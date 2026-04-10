@@ -155,14 +155,31 @@ def create_logging_controls(
 
 
 def bind_keyboard_shortcuts(window, speed_var, pause_button, reset_callback, toggle_pause_fn):
+    def should_ignore_event(event):
+        widget = getattr(event, "widget", None)
+        if widget is None:
+            return False
+        try:
+            widget_class = widget.winfo_class()
+        except Exception:
+            return False
+        return widget_class in {"Scale", "Menubutton", "Button", "TButton"}
+
     def key_handler(event):
+        if should_ignore_event(event):
+            return None
+
         if event.keysym == "space":
             toggle_pause_fn(pause_button)
+            return "break"
         elif event.keysym in {"r", "R"}:
             reset_callback()
+            return "break"
         elif event.keysym in {"plus", "equal"}:
             speed_var.set(min(5.0, speed_var.get() + 0.1))
+            return "break"
         elif event.keysym == "minus":
             speed_var.set(max(0.5, speed_var.get() - 0.1))
+            return "break"
 
     window.bind("<Key>", key_handler)

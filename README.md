@@ -14,11 +14,13 @@ pip install -r requirements.txt
 python main.py
 
 # 无 GUI 模式运行（用于自动化实验）
-# python run_headless.py --seed 42 --frames 3000
+# python run_headless.py --seed 42 --frames 3000 --brain-type qlearning
 
 # 运行测试
-# python -m unittest -v
+# python -m pytest tests/test_regressions.py -q
 ```
+
+> **算法切换说明**：GUI 里的 Brain 下拉框会在点击 `Reset` 后统一应用；运行中新增的机器人会继承当前已生效的算法，而不是尚未 reset 的待选项。
 
 > **注意**：本项目核心仅依赖 Python 标准库（`tkinter`、`math`、`logging` 等），无需额外第三方库即可运行仿真。`requirements.txt` 中列出的是实验阶段用于数据分析和可视化的依赖。
 
@@ -71,7 +73,7 @@ experiments/                  # [研究问题1] 实验框架
   results/               # 实验 CSV 数据
   figures/               # 生成的分析图表
 tests/
-  test_regressions.py    # 61 个回归测试
+  test_regressions.py    # 76 个回归测试
 docs/
   CHANGES.md                 # 变更记录总览
   architecture-overview.md   # 模块架构说明
@@ -117,7 +119,7 @@ docs/
 - [**模块化架构**](docs/architecture-overview.md)：从约 1200 行的单体文件重构为 37 个职责明确的模块
 - [**25 项 Bug 修复**](docs/bugfixes.md)：涵盖 A* 寻路、充电系统、运动物理、实体管理
 - [**9 项设计改进 & 5 项新功能**](docs/new-features.md)：结构化日志、运行时日志级别 UI 控件、机器人主动避猫、无头仿真模式、RQ1 替代决策架构与实验框架
-- **61 个回归测试**：覆盖所有已修复 Bug 和新功能
+- **76 个回归测试**：覆盖已修复 Bug、新增 UI 交互约束、Q-Learning 训练/分析回归和主入口兼容层
 - **Headless 模式**：`run_headless.py` 支持无 GUI 自动化实验
 
 > 完整变更记录见 [docs/CHANGES.md](docs/CHANGES.md)
@@ -130,13 +132,13 @@ docs/
 # 基本运行
 python run_headless.py --seed 42 --frames 3000
 
-# 自定义参数
-python run_headless.py --seed 123 --frames 5000 --dt 1.0
+# 切换智能体架构
+python run_headless.py --seed 123 --frames 5000 --dt 1.0 --brain-type qlearning
 
 # 输出包含碰撞次数、猫惊跳次数、冻结事件次数
 ```
 
-Headless 模式使用 `FakeCanvas` 替代真实 Tk 画布，结构化事件日志输出到 `logs/headless.log`，便于事后分析 agent 行为。
+Headless 模式使用 `FakeCanvas` 替代真实 Tk 画布，结构化事件日志输出到 `logs/headless.log`，便于事后分析 agent 行为。脚本在检测到真实 `collision_detected` 事件时会返回非零退出码，适合作为回归冒烟检查。
 
 ## 默认仿真参数
 
@@ -183,40 +185,40 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 
 #### 核心结论
 
-**Q-Learning 在所有实验中表现最优**，尤其在泛化能力上优势显著。每种算法各有明确的优劣势：
+在修复实验统计口径并重新生成 RQ1 全部结果后，**Q-Learning 仍然取得最高平均清扫量**，但标准对比中的清扫量差异在当前 `10` 个 seed 样本下并未达到统计显著。当前更准确的结论是：Subsumption 最安全，Q-Learning 综合表现最好，Potential Field 在当前参数下既不够安全也不够高效。
 
 | 特征 | Subsumption | Potential Field | Q-Learning |
 |------|------------|-----------------|------------|
-| 清扫效率 | 最低 (77.0) | 中等 (88.8) | **最高 (93.5)** |
-| 安全性 | **最安全** (0 猫冻结) | 不稳定 (12.4 猫冻结) | 安全 (0 猫冻结) |
-| 电量管理 | **完美** (0 耗尽) | **完美** (0 耗尽) | 存在缺陷 |
-| 泛化能力 | 低 | 中 | **最强** |
+| 清扫效率（平均 dirt） | 75.3 | 69.1 | **79.8** |
+| 安全性（平均猫冻结） | **0.0** | 1.8 | 0.5 |
+| 电量管理（平均耗尽次数） | **0.0** | **0.0** | 0.1 |
+| 泛化表现 | 稳定但保守 | 波动较大 | **四种环境均最高** |
 
 #### 实验结果展示
 
-**标准对比** — Q-Learning 显著优于 Subsumption (p=0.019)：
+**标准对比** — Q-Learning 平均清扫量最高，但当前样本下三组 dirt collected 差异均未达显著；显著差异只出现在 Subsumption 与 APF 的猫冻结次数上（`p=0.012`）：
 
 <p align="center">
   <img src="docs/rq1-figures/bar_dirt_collected.png" width="45%" />
   <img src="docs/rq1-figures/box_collection_rate.png" width="45%" />
 </p>
 
-**猫数量鲁棒性** — 随猫增多 Subsumption/APF 明显退化，Q-Learning 最稳定：
+**猫数量鲁棒性** — Q-Learning 在 `0-8` 只猫的全部设置下都保持最高或并列最高的平均清扫量：
 
 <p align="center">
   <img src="docs/rq1-figures/line_cat_gradient.png" width="60%" />
 </p>
 
-**泛化测试** — Q-Learning 在未见过的环境中优势最大（hard mode +36%）：
+**泛化测试** — Q-Learning 在四个未重新训练的环境里都取得最高平均得分：
 
-| 环境 | Subsumption | APF | Q-Learning | Q-Learning 优势 |
-|------|------------|-----|------------|----------------|
-| 标准 (3bot, 4cat) | 77.0 | 88.8 | **93.5** | +6% vs APF |
-| 单机器人 (1bot, 4cat) | 31.3 | 33.9 | **44.3** | **+31%** |
-| 多机器人 (5bot, 4cat) | 103.1 | 111.3 | **133.1** | **+20%** |
-| 困难模式 (1bot, 8cat) | 22.0 | 28.8 | **39.3** | **+36%** |
+| 环境 | Subsumption | APF | Q-Learning | 相对次优优势 |
+|------|------------|-----|------------|-------------|
+| 标准 (3bot, 4cat) | 75.3 | 69.1 | **79.8** | +4.5 vs Subsumption |
+| 单机器人 (1bot, 4cat) | 30.8 | 25.6 | **35.8** | +5.0 vs Subsumption |
+| 多机器人 (5bot, 4cat) | 95.7 | 89.5 | **102.2** | +6.5 vs Subsumption |
+| 困难模式 (1bot, 8cat) | 23.6 | 23.5 | **27.5** | +3.9 vs Subsumption |
 
-**训练曲线与训练轮次效果**：
+**训练曲线与训练轮次效果** — 最佳平均成绩出现在 `100` 轮训练（`88.6`），而 `25` 轮已达到 `86.6`；更长训练轮次并未单调提升，说明当前奖励设计和训练稳定性仍有改进空间：
 
 <p align="center">
   <img src="docs/rq1-figures/training_curve_reward.png" width="45%" />
@@ -239,14 +241,14 @@ python experiments/run_experiments.py --experiment-type cat_gradient --seeds 10 
 python experiments/run_experiments.py --experiment-type training_duration --seeds 10 --frames 1500
 
 # 5. 泛化测试
-python experiments/run_generalization.py --seeds 10 --frames 1500
+python experiments/run_generalization.py --seeds 10 --frames 1500 --qtable experiments/qtables/trained.json
 
 # 6. 生成图表
 python experiments/analyze_results.py --comparison experiments/results/comparison.csv \
   --training experiments/results/training_curve.csv \
   --cat-gradient experiments/results/cat_gradient.csv \
   --training-duration experiments/results/training_duration.csv \
-  --qtable experiments/qtables/trained.json --output-dir experiments/figures/
+  --qtable experiments/qtables/trained.json --output-dir docs/rq1-figures
 ```
 
 ### 研究问题 2-5：待定
@@ -263,7 +265,7 @@ python experiments/analyze_results.py --comparison experiments/results/compariso
 - [x] 自主智能 Agent（多机器人，subsumption 决策架构）
 - [x] AI 技术实现（A* 寻路 + subsumption 行为分层 + 反应式避猫）
 - [x] 代码模块化重构与 Bug 修复
-- [x] 回归测试（61 个）
+- [x] 回归测试（76 个）
 - [x] Headless 实验模式基础设施
 - [x] 结构化日志系统
 - [x] **研究问题 1**：三种Brain实现（APF + Q-Learning）、训练、实验、图表生成

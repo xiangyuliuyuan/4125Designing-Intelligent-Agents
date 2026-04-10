@@ -15,6 +15,7 @@ class CanvasTooltip:
         self.cats = cats
         self.chargers = chargers
         self._tip_window = None
+        self._tip_label = None
         self._current_tag = None
 
         canvas.bind("<Motion>", self._on_motion)
@@ -58,21 +59,22 @@ class CanvasTooltip:
                     )
         return None
 
+    def _find_entity_from_items(self, items):
+        for item in reversed(items):
+            tags = self.canvas.gettags(item)
+            for tag in tags:
+                info = self._find_entity((tag,))
+                if info:
+                    return tag, info
+        return None, None
+
     def _on_motion(self, event):
         items = self.canvas.find_overlapping(event.x - 3, event.y - 3, event.x + 3, event.y + 3)
         if not items:
             self._hide()
             return
 
-        all_tags = set()
-        for item in items:
-            all_tags.update(self.canvas.gettags(item))
-
-        tag_key = frozenset(all_tags)
-        if tag_key == self._current_tag:
-            return
-
-        info = self._find_entity(all_tags)
+        tag_key, info = self._find_entity_from_items(items)
         if info:
             self._current_tag = tag_key
             self._show(event.x_root + 15, event.y_root + 10, info)
@@ -80,24 +82,29 @@ class CanvasTooltip:
             self._hide()
 
     def _show(self, x, y, text):
-        self._hide()
         try:
-            self._tip_window = tw = tk.Toplevel(self.canvas)
-            tw.wm_overrideredirect(True)
+            if self._tip_window is None:
+                self._tip_window = tw = tk.Toplevel(self.canvas)
+                tw.wm_overrideredirect(True)
+
+                frame = tk.Frame(tw, bg=BG_CARD, padx=8, pady=6, relief="solid", bd=1)
+                frame.pack()
+
+                self._tip_label = tk.Label(
+                    frame,
+                    text=text,
+                    fg=TEXT_PRIMARY,
+                    bg=BG_CARD,
+                    font=FONT_SMALL,
+                    justify="left",
+                )
+                self._tip_label.pack()
+            else:
+                tw = self._tip_window
+                if self._tip_label is not None:
+                    self._tip_label.config(text=text)
+
             tw.wm_geometry(f"+{x}+{y}")
-
-            frame = tk.Frame(tw, bg=BG_CARD, padx=8, pady=6, relief="solid", bd=1)
-            frame.pack()
-
-            label = tk.Label(
-                frame,
-                text=text,
-                fg=TEXT_PRIMARY,
-                bg=BG_CARD,
-                font=FONT_SMALL,
-                justify="left",
-            )
-            label.pack()
         except Exception:
             if self._tip_window:
                 try:
@@ -105,12 +112,14 @@ class CanvasTooltip:
                 except Exception:
                     pass
                 self._tip_window = None
+                self._tip_label = None
             return
 
     def _hide(self, event=None):
         self._current_tag = None
         tw = self._tip_window
         self._tip_window = None
+        self._tip_label = None
         if tw:
             try:
                 tw.destroy()

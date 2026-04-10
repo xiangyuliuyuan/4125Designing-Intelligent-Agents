@@ -120,7 +120,7 @@ class RoundedButton:
         )
 
         # Real Tk widgets need a master with `.tk`; fake-tk tests do not.
-        if hasattr(parent, "tk"):
+        if hasattr(parent, "tk") and hasattr(getattr(parent, "tk"), "call"):
             self._canvas = tk.Canvas(parent, **canvas_kwargs)
         else:
             shim_kwargs = dict(canvas_kwargs)

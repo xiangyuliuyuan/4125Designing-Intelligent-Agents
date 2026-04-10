@@ -26,6 +26,9 @@ logger = get_logger(__name__)
 _DEBRIS_CLEARANCE = 35.0
 # Minimum distance between two chargers (they each need docking room).
 _CHARGER_CLEARANCE = 50.0
+_BOT_CLEARANCE = 60.0
+_CAT_CLEARANCE = 40.0
+_BOT_CAT_CLEARANCE = 90.0
 
 
 def _overlaps_obstacles(x, y, clearance, placed_objects):
@@ -50,13 +53,55 @@ def _overlaps_obstacles(x, y, clearance, placed_objects):
     return False
 
 
+def _distance_sq(x1, y1, x2, y2):
+    dx = x1 - x2
+    dy = y1 - y2
+    return dx * dx + dy * dy
+
+
+def _overlaps_active_entities(
+    x,
+    y,
+    agents=(),
+    cats=(),
+    min_distance_to_agents=0.0,
+    min_distance_to_cats=0.0,
+):
+    if min_distance_to_agents > 0:
+        min_agent_sq = min_distance_to_agents * min_distance_to_agents
+        for agent in agents:
+            if _distance_sq(x, y, agent.x, agent.y) < min_agent_sq:
+                return True
+
+    if min_distance_to_cats > 0:
+        min_cat_sq = min_distance_to_cats * min_distance_to_cats
+        for cat in cats:
+            if _distance_sq(x, y, cat.x, cat.y) < min_cat_sq:
+                return True
+
+    return False
+
+
 def _find_clear_position(placed_objects, clearance, margin=100,
-                         world_size=1000, max_attempts=80):
+                         world_size=1000, max_attempts=80,
+                         agents=(), cats=(),
+                         min_distance_to_agents=0.0,
+                         min_distance_to_cats=0.0):
     """Return a random (x, y) that does not overlap obstacles/chargers."""
     for _ in range(max_attempts):
         x = random.randint(margin, world_size - margin)
         y = random.randint(margin, world_size - margin)
-        if not _overlaps_obstacles(x, y, clearance, placed_objects):
+        if (
+            not _overlaps_obstacles(x, y, clearance, placed_objects)
+            and not _overlaps_active_entities(
+                x,
+                y,
+                agents=agents,
+                cats=cats,
+                min_distance_to_agents=min_distance_to_agents,
+                min_distance_to_cats=min_distance_to_cats,
+            )
+        ):
             return x, y
     # Fallback — return last attempt (very crowded world).
     logger.warning("_find_clear_position: exhausted %d attempts, returning potentially overlapping position (%d, %d)", max_attempts, x, y)
@@ -148,20 +193,28 @@ def create_world(
         state.passive_objects.append(lamp)
         lamp.draw(canvas)
 
-    # --- Place cats (avoid debris) ---
+    # --- Place cats (avoid debris & existing actors) ---
     for i in range(noOfCats):
         cat = Cat(f"Cat{i}")
         cx, cy = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
-                                      world_size=width)
+                                      world_size=width,
+                                      agents=state.agents,
+                                      cats=state.cats,
+                                      min_distance_to_agents=_BOT_CAT_CLEARANCE,
+                                      min_distance_to_cats=_CAT_CLEARANCE)
         cat.x, cat.y = cx, cy
         state.cats.append(cat)
         cat.draw(canvas)
 
-    # --- Place bots (avoid debris) ---
+    # --- Place bots (avoid debris & existing actors) ---
     for i in range(noOfBots):
         bot = _make_bot(f"Bot{i}", state.astar, brain_type=brain_type)
         bx, by = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
-                                      world_size=width)
+                                      world_size=width,
+                                      agents=state.agents,
+                                      cats=state.cats,
+                                      min_distance_to_agents=_BOT_CLEARANCE,
+                                      min_distance_to_cats=_BOT_CAT_CLEARANCE)
         bot.x, bot.y = bx, by
         state.agents.append(bot)
         bot.draw(canvas)
@@ -205,10 +258,17 @@ def createObjects(
     )
 
 
-def add_bot(canvas, agents, passiveObjects, astar, chargers, brain_type="subsumption"):
+def add_bot(canvas, agents, passiveObjects, astar, chargers, brain_type="subsumption", cats=()):
     bot_num = len(agents)
     bot = _make_bot(f"Bot{bot_num}", astar, brain_type=brain_type)
-    bx, by = _find_clear_position(passiveObjects, _DEBRIS_CLEARANCE)
+    bx, by = _find_clear_position(
+        passiveObjects,
+        _DEBRIS_CLEARANCE,
+        agents=agents,
+        cats=cats,
+        min_distance_to_agents=_BOT_CLEARANCE,
+        min_distance_to_cats=_BOT_CAT_CLEARANCE,
+    )
     bot.x, bot.y = bx, by
     agents.append(bot)
     bot.draw(canvas)
@@ -229,10 +289,17 @@ def remove_bot(canvas, agents, chargers):
     return agents
 
 
-def add_cat(canvas, cats, passiveObjects=()):
+def add_cat(canvas, cats, passiveObjects=(), agents=()):
     cat_num = len(cats)
     cat = Cat(f"Cat{cat_num}")
-    cx, cy = _find_clear_position(passiveObjects, _DEBRIS_CLEARANCE)
+    cx, cy = _find_clear_position(
+        passiveObjects,
+        _DEBRIS_CLEARANCE,
+        agents=agents,
+        cats=cats,
+        min_distance_to_agents=_BOT_CAT_CLEARANCE,
+        min_distance_to_cats=_CAT_CLEARANCE,
+    )
     cat.x, cat.y = cx, cy
     cats.append(cat)
     cat.draw(canvas)

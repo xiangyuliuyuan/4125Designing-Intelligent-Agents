@@ -15,6 +15,7 @@ from app.logging_config import configure_logging, reset_logging
 from simulation import runtime
 from simulation.engine import advance_simulation_frame
 from robot.brain_qlearning import QLearningBrain
+from experiments.utils import count_transitions as _count_transitions
 
 
 def run_single(brain_type, seed, frames, qtable_path=None, noOfCats=None, noOfBots=None):
@@ -44,6 +45,8 @@ def run_single(brain_type, seed, frames, qtable_path=None, noOfCats=None, noOfBo
 
     cat_freeze_count = 0
     battery_depletions = 0
+    frozen_agents = set()
+    depleted_agents = set()
 
     for frame in range(frames):
         runtime.simulation_tick += 1
@@ -54,13 +57,13 @@ def run_single(brain_type, seed, frames, qtable_path=None, noOfCats=None, noOfBo
             dt=1.0, now=start_time + runtime.simulation_tick
         )
 
-        # Track cat freezes and battery
-        for agent in agents:
-            if hasattr(agent, 'brain'):
-                if getattr(agent.brain, 'is_cat_frozen', False):
-                    cat_freeze_count += 1
-            if agent.battery <= 0:
-                battery_depletions += 1
+        frame_freezes, frame_depletions, frozen_agents, depleted_agents = _count_transitions(
+            agents,
+            frozen_agents,
+            depleted_agents,
+        )
+        cat_freeze_count += frame_freezes
+        battery_depletions += frame_depletions
 
     dirt_collected = count.dirtCollected
 

@@ -3,6 +3,7 @@ import unittest
 import runpy
 import tkinter
 import time
+import importlib
 import warnings
 import io
 import math
@@ -27,6 +28,10 @@ class DummyCanvas:
     def __init__(self):
         self.after_calls = []
         self.operations = []
+        self.overlapping_items = []
+        self.tags_by_item = {}
+        self.item_configs = {}
+        self.last_scroll = None
 
     def delete(self, *args, **kwargs):
         self.operations.append(("delete", args, kwargs))
@@ -46,12 +51,36 @@ class DummyCanvas:
     def create_rectangle(self, *args, **kwargs):
         self.operations.append(("create_rectangle", args, kwargs))
 
+    def create_window(self, *args, **kwargs):
+        item_id = len(self.operations) + 1
+        self.operations.append(("create_window", args, kwargs))
+        return item_id
+
+    def itemconfigure(self, item_id, **kwargs):
+        self.item_configs[item_id] = dict(kwargs)
+        self.operations.append(("itemconfigure", (item_id,), kwargs))
+
+    def bbox(self, *args, **kwargs):
+        return (0, 0, 1000, 1000)
+
+    def yview_scroll(self, number, what):
+        self.last_scroll = (number, what)
+
+    def find_overlapping(self, *args, **kwargs):
+        return tuple(self.overlapping_items)
+
+    def gettags(self, item):
+        return self.tags_by_item.get(item, ())
+
     def bind(self, *args, **kwargs):
         pass
 
     def after(self, delay, callback, *args):
         self.after_calls.append((delay, callback, args))
         return len(self.after_calls)
+
+    def after_cancel(self, _after_id):
+        pass
 
 
 class FakeRoot:
@@ -90,6 +119,7 @@ class FakeTkWidget:
         self.parent = parent
         self.kwargs = kwargs
         self.calls = []
+        self.tk = getattr(parent, "tk", None)
 
     def pack(self, *args, **kwargs):
         self.calls.append(("pack", args, kwargs))
@@ -98,8 +128,25 @@ class FakeTkWidget:
         self.kwargs.update(kwargs)
         self.calls.append(("config", kwargs))
 
+    configure = config
+
     def cget(self, key):
         return self.kwargs.get(key, "")
+
+    def bind(self, event, callback):
+        self.calls.append(("bind", event, callback))
+
+    def pack_propagate(self, flag):
+        self.calls.append(("pack_propagate", flag))
+
+    def winfo_width(self):
+        return self.kwargs.get("width", 1000)
+
+    def winfo_height(self):
+        return self.kwargs.get("height", 1000)
+
+    def winfo_class(self):
+        return self.kwargs.get("widget_class", type(self).__name__)
 
     def winfo_toplevel(self):
         if self.parent and hasattr(self.parent, "winfo_toplevel"):
@@ -159,6 +206,7 @@ class FakeTkRoot(FakeTkWidget):
         self._geometry = "1000x1000+0+0"
         self.bindings = []
         self.title_value = None
+        self.tk = self
 
     def title(self, value):
         self.title_value = value
@@ -236,11 +284,117 @@ class RegressionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.mod = load_main_module()
 
+    _RUNTIME_ATTRS = ("simulation_running", "reset_flag", "simulation_tick", "after_id")
+
+    def setUp(self):
+        self._saved_runtime = {
+            attr: getattr(self.mod, attr, None)
+            for attr in self._RUNTIME_ATTRS
+            if hasattr(self.mod, attr)
+        }
+
+    def tearDown(self):
+        for attr in self._RUNTIME_ATTRS:
+            if attr in self._saved_runtime:
+                setattr(self.mod, attr, self._saved_runtime[attr])
+            elif hasattr(self.mod, attr):
+                delattr(self.mod, attr)
+
     def make_bot(self, name="Bot0"):
         bot = self.mod.Bot(name)
         bot.setBrain(self.mod.Brain(bot))
         bot.setAStar(self.mod.AStar(1000, 1000, 20))
         return bot
+
+    def exercise_bootstrap_callbacks(self, simulation_data=None, add_bot_impl=None, remove_bot_impl=None):
+        from app import bootstrap
+        from ui.stats_panel import set_initial_stats as real_set_initial_stats
+
+        fake_tk = FakeTkModule()
+        fake_window = fake_tk.Tk()
+        fake_frame = fake_tk.Frame(fake_window)
+        side_panel = fake_tk.Frame(fake_frame)
+        canvas = DummyCanvas()
+        speed_var = FakeTkVar(value=1.0)
+        brain_var = FakeTkVar(value="subsumption")
+        callback_store = {}
+        pause_button = FakeTkWidget(side_panel, text="⏸ 暂停")
+        reset_button = FakeTkWidget(side_panel, text="🔄 重置")
+        stats_vars = {
+            key: FakeTkWidget(side_panel, text="0")
+            for key in ["collected", "debris", "active_bots", "avg_battery", "runtime", "cats_count", "chargers_count"]
+        }
+
+        if simulation_data is None:
+            charger = self.mod.Charger("Charger0")
+            charger.centreX = 300
+            charger.centreY = 300
+            bot = self.make_bot("Bot0")
+            bot.battery = 1000
+            simulation_data = {
+                "agents": [bot],
+                "passiveObjects": [charger],
+                "count": self.mod.Counter(),
+                "cats": [],
+                "debris_count": 0,
+                "chargers": [charger],
+                "astar": self.mod.AStar(1000, 1000, 20),
+                "start_time": time.time(),
+            }
+
+        if add_bot_impl is None:
+            def add_bot_impl(_canvas, agents, _passive_objects, _astar, _chargers, **_kwargs):
+                new_bot = self.make_bot(f"Bot{len(agents)}")
+                agents.append(new_bot)
+                return agents
+
+        if remove_bot_impl is None:
+            def remove_bot_impl(_canvas, agents, _chargers):
+                if len(agents) > 1:
+                    agents.pop()
+                return agents
+
+        def fake_set_initial_stats(stats_vars_arg, passive_objects, agents, cats, chargers, count, start_time, now=None):
+            return real_set_initial_stats(stats_vars_arg, passive_objects, agents, cats, chargers, count, start_time, now=now)
+
+        def capture_entity_controls(_parent, callbacks, tk_module=None):
+            callback_store.update(callbacks)
+
+        patchers = [
+            patch.object(bootstrap, "configure_logging"),
+            patch.object(bootstrap, "get_logging_levels", return_value={"file": "INFO", "console": "WARNING"}),
+            patch.object(bootstrap, "create_main_window", return_value=(fake_window, fake_frame)),
+            patch.object(bootstrap, "initialise", return_value=canvas),
+            patch.object(bootstrap, "build_side_panel", return_value=side_panel),
+            patch.object(bootstrap, "build_stats_panel", return_value=(fake_tk.Frame(side_panel), stats_vars)),
+            patch.object(bootstrap, "create_speed_controls", return_value=(speed_var, FakeTkWidget(side_panel))),
+            patch.object(bootstrap, "create_brain_selector", return_value=brain_var),
+            patch.object(bootstrap, "create_simulation_data", return_value=simulation_data),
+            patch.object(bootstrap, "_configure_qlearning_agents"),
+            patch.object(bootstrap, "build_entity_controls", side_effect=capture_entity_controls),
+            patch.object(bootstrap, "build_basic_controls", return_value=(fake_tk.Frame(side_panel), pause_button, reset_button)),
+            patch.object(bootstrap, "create_logging_controls", return_value=(fake_tk.Frame(side_panel), FakeTkVar("INFO"), FakeTkVar("WARNING"))),
+            patch.object(bootstrap, "set_initial_stats", side_effect=fake_set_initial_stats),
+            patch.object(bootstrap, "CanvasTooltip", return_value=types.SimpleNamespace(update_data=lambda *args: None)),
+            patch.object(bootstrap, "bind_keyboard_shortcuts"),
+            patch.object(bootstrap, "schedule_simulation"),
+            patch.object(bootstrap, "add_bot", side_effect=add_bot_impl),
+            patch.object(bootstrap, "remove_bot", side_effect=remove_bot_impl),
+        ]
+
+        for patcher in patchers:
+            patcher.start()
+        for patcher in reversed(patchers):
+            self.addCleanup(patcher.stop)
+
+        bootstrap.run_app(tk_module=fake_tk)
+
+        return {
+            "brain_var": brain_var,
+            "callbacks": callback_store,
+            "stats_vars": stats_vars,
+            "simulation_data": simulation_data,
+        }
 
     def test_initialise_uses_toplevel_window_for_resizable(self):
         fake_root = FakeRoot()
@@ -257,19 +411,21 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(canvas.packed)
 
     def test_initialise_does_not_lock_real_tk_window_to_one_pixel(self):
-        from ui.window import create_main_window
+        from ui.window import create_main_window, initialise as window_initialise
 
-        window, frame = create_main_window(tk_module=self.mod.tk)
-        try:
-            self.mod.initialise(frame)
-            window.update_idletasks()
-            size = window.geometry().split("+", 1)[0]
-            width, height = map(int, size.split("x"))
-        finally:
-            window.destroy()
+        fake_tk = FakeTkModule()
+        window, frame = create_main_window(tk_module=fake_tk)
 
+        canvas = window_initialise(frame, tk_module=fake_tk)
+        window.update_idletasks()
+        size = window.geometry().split("+", 1)[0]
+        width, height = map(int, size.split("x"))
+
+        resizable_calls = [call for call in window.calls if call[0] == "resizable"]
+        self.assertIsInstance(canvas, FakeTkCanvas)
         self.assertGreater(width, 100)
         self.assertGreater(height, 100)
+        self.assertEqual(resizable_calls, [])
 
     def test_main_delegates_to_run_app(self):
         fake_tk = FakeTkModule()
@@ -329,6 +485,69 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(len(simulation_data["cats"]), 4)
         self.assertEqual(len(simulation_data["chargers"]), 2)
         self.assertIn("start_time", simulation_data)
+
+    def test_create_simulation_data_avoids_initial_actor_overlaps(self):
+        from app.context import create_simulation_data
+        import random
+
+        random.seed(0)
+        simulation_data = create_simulation_data(FakeTkCanvas(width=1000, height=1000))
+        agents = simulation_data["agents"]
+        cats = simulation_data["cats"]
+
+        for index, bot in enumerate(agents):
+            for other in agents[index + 1:]:
+                self.assertGreaterEqual(math.hypot(bot.x - other.x, bot.y - other.y), 60.0)
+            for cat in cats:
+                self.assertGreaterEqual(bot.distanceTo(cat), 90.0)
+
+    def test_add_bot_avoids_existing_agents_and_cats(self):
+        from app.context import create_simulation_data
+        from simulation.factory import add_bot
+        import random
+
+        random.seed(8)
+        simulation_data = create_simulation_data(FakeTkCanvas(width=1000, height=1000))
+        existing_agents = list(simulation_data["agents"])
+        cats = simulation_data["cats"]
+
+        updated_agents = add_bot(
+            DummyCanvas(),
+            simulation_data["agents"],
+            simulation_data["passiveObjects"],
+            simulation_data["astar"],
+            simulation_data["chargers"],
+            cats=cats,
+        )
+
+        new_bot = updated_agents[-1]
+        for other in existing_agents:
+            self.assertGreaterEqual(math.hypot(new_bot.x - other.x, new_bot.y - other.y), 60.0)
+        for cat in cats:
+            self.assertGreaterEqual(new_bot.distanceTo(cat), 90.0)
+
+    def test_add_cat_avoids_existing_agents_and_cats(self):
+        from app.context import create_simulation_data
+        from simulation.factory import add_cat
+        import random
+
+        random.seed(11)
+        simulation_data = create_simulation_data(FakeTkCanvas(width=1000, height=1000))
+        existing_cats = list(simulation_data["cats"])
+        agents = simulation_data["agents"]
+
+        updated_cats = add_cat(
+            DummyCanvas(),
+            simulation_data["cats"],
+            simulation_data["passiveObjects"],
+            agents=agents,
+        )
+
+        new_cat = updated_cats[-1]
+        for other in existing_cats:
+            self.assertGreaterEqual(math.hypot(new_cat.x - other.x, new_cat.y - other.y), 40.0)
+        for bot in agents:
+            self.assertGreaterEqual(bot.distanceTo(new_cat), 90.0)
 
     def test_control_panel_builds_pause_button(self):
         from ui.control_panel import build_basic_controls
@@ -469,6 +688,158 @@ class RegressionTests(unittest.TestCase):
             self.assertIn("tick=42", contents)
             self.assertIn("event=bot.test_event", contents)
             self.assertNotIn("|", contents)
+
+    def test_brain_selector_change_does_not_mix_brains_before_reset(self):
+        recorded_brain_types = []
+        initial_bot = self.make_bot("Bot0")
+        initial_bot.battery = 1000
+        charger = self.mod.Charger("Charger0")
+        charger.centreX = 300
+        charger.centreY = 300
+        simulation_data = {
+            "agents": [initial_bot],
+            "passiveObjects": [charger],
+            "count": self.mod.Counter(),
+            "cats": [],
+            "debris_count": 0,
+            "chargers": [charger],
+            "astar": self.mod.AStar(1000, 1000, 20),
+            "start_time": time.time(),
+        }
+
+        def add_bot_impl(_canvas, agents, _passive_objects, _astar, _chargers, brain_type=None, **_kwargs):
+            recorded_brain_types.append(brain_type)
+            new_bot = self.make_bot(f"Bot{len(agents)}")
+            agents.append(new_bot)
+            return agents
+
+        harness = self.exercise_bootstrap_callbacks(simulation_data=simulation_data, add_bot_impl=add_bot_impl)
+        harness["brain_var"].set("qlearning")
+        harness["callbacks"]["add_bot"]()
+
+        self.assertEqual(recorded_brain_types, ["subsumption"])
+
+    def test_add_bot_refreshes_avg_battery_immediately(self):
+        initial_bot = self.make_bot("Bot0")
+        initial_bot.battery = 1000
+        charger = self.mod.Charger("Charger0")
+        charger.centreX = 300
+        charger.centreY = 300
+        simulation_data = {
+            "agents": [initial_bot],
+            "passiveObjects": [charger],
+            "count": self.mod.Counter(),
+            "cats": [],
+            "debris_count": 0,
+            "chargers": [charger],
+            "astar": self.mod.AStar(1000, 1000, 20),
+            "start_time": time.time(),
+        }
+
+        def add_bot_impl(_canvas, agents, _passive_objects, _astar, _chargers, **_kwargs):
+            new_bot = self.make_bot(f"Bot{len(agents)}")
+            new_bot.battery = 500
+            agents.append(new_bot)
+            return agents
+
+        harness = self.exercise_bootstrap_callbacks(simulation_data=simulation_data, add_bot_impl=add_bot_impl)
+        harness["callbacks"]["add_bot"]()
+
+        self.assertEqual(harness["stats_vars"]["active_bots"].cget("text"), "2")
+        self.assertEqual(harness["stats_vars"]["avg_battery"].cget("text"), "750")
+
+    def test_keyboard_shortcuts_ignore_focused_controls(self):
+        from ui.controls import bind_keyboard_shortcuts
+
+        window = FakeTkRoot()
+        speed_var = FakeTkVar(value=1.0)
+        toggle_calls = []
+        reset_calls = []
+
+        bind_keyboard_shortcuts(
+            window,
+            speed_var,
+            pause_button=FakeTkWidget(),
+            reset_callback=lambda: reset_calls.append("reset"),
+            toggle_pause_fn=lambda _button: toggle_calls.append("toggle"),
+        )
+
+        _event_name, handler = window.bindings[0]
+        focused_scale = types.SimpleNamespace(keysym="space", widget=types.SimpleNamespace(winfo_class=lambda: "Scale"))
+        result = handler(focused_scale)
+
+        self.assertEqual(toggle_calls, [])
+        self.assertEqual(reset_calls, [])
+        self.assertIsNone(result)
+
+    def test_keyboard_shortcuts_return_break_for_handled_canvas_keys(self):
+        from ui.controls import bind_keyboard_shortcuts
+
+        window = FakeTkRoot()
+        speed_var = FakeTkVar(value=1.0)
+        toggle_calls = []
+
+        bind_keyboard_shortcuts(
+            window,
+            speed_var,
+            pause_button=FakeTkWidget(),
+            reset_callback=lambda: None,
+            toggle_pause_fn=lambda _button: toggle_calls.append("toggle"),
+        )
+
+        _event_name, handler = window.bindings[0]
+        canvas_event = types.SimpleNamespace(keysym="space", widget=types.SimpleNamespace(winfo_class=lambda: "Canvas"))
+        result = handler(canvas_event)
+
+        self.assertEqual(toggle_calls, ["toggle"])
+        self.assertEqual(result, "break")
+
+    def test_tooltip_updates_text_and_position_when_hovering_same_entity(self):
+        from ui.tooltip import CanvasTooltip
+
+        canvas = DummyCanvas()
+        canvas.overlapping_items = [1]
+        canvas.tags_by_item = {1: ("Bot0",)}
+
+        bot = self.make_bot("Bot0")
+        bot.x = 10
+        bot.y = 20
+        bot.battery = 1000
+
+        tooltip = CanvasTooltip(canvas, [bot], [], [])
+        shown = []
+        tooltip._show = lambda x, y, text: shown.append((x, y, text))
+
+        tooltip._on_motion(types.SimpleNamespace(x=10, y=20, x_root=100, y_root=200))
+        bot.battery = 900
+        bot.x = 15
+        bot.y = 25
+        tooltip._on_motion(types.SimpleNamespace(x=15, y=25, x_root=110, y_root=210))
+
+        self.assertEqual(len(shown), 2)
+        self.assertEqual(shown[-1][0:2], (125, 220))
+        self.assertIn("900", shown[-1][2])
+
+    def test_tooltip_prefers_topmost_hovered_entity(self):
+        from ui.tooltip import CanvasTooltip
+
+        canvas = DummyCanvas()
+        canvas.overlapping_items = [1, 2]
+        canvas.tags_by_item = {
+            1: ("Charger0",),
+            2: ("BotX",),
+        }
+
+        charger = self.mod.Charger("Charger0")
+        charger.centreX = 100
+        charger.centreY = 100
+        bot = self.make_bot("BotX")
+
+        tooltip = CanvasTooltip(canvas, [bot], [], [charger])
+        tag, info = tooltip._find_entity_from_items(canvas.overlapping_items)
+
+        self.assertEqual(tag, "BotX")
+        self.assertIn("BotX", info)
 
     def test_derive_bot_mode_uses_stable_priority_order(self):
         from robot.state_view import derive_bot_mode
@@ -1746,6 +2117,125 @@ class RegressionTests(unittest.TestCase):
         objs = older_bot.collectDirt(canvas, objs, counter, 0)
         self.assertEqual(liquid.clean_count, 2)
         self.assertEqual(counter.dirtCollected, 0)
+
+    def test_imported_main_runtime_aliases_proxy_reads_and_writes(self):
+        from simulation import runtime
+
+        runtime.reset()
+        main_module = importlib.import_module("main")
+        main_module = importlib.reload(main_module)
+
+        self.assertTrue(main_module.simulation_running)
+        runtime.simulation_tick = 12
+        self.assertEqual(main_module.simulation_tick, 12)
+
+        main_module.simulation_running = False
+        self.assertFalse(runtime.simulation_running)
+
+    def test_qlearning_end_episode_applies_terminal_reward_update(self):
+        from robot.brain_qlearning import FORWARD, QLearningBrain
+
+        bot = self.make_bot("Learner")
+        brain = QLearningBrain(bot, alpha=0.1, gamma=0.95)
+        brain.set_training(True)
+        state = ("none", "none", "high", "low", "low", "low")
+        brain.last_state = state
+        brain.last_action = FORWARD
+        brain.give_reward(10.0)
+
+        brain.end_episode()
+
+        self.assertAlmostEqual(brain.q_table[(state, FORWARD)], 1.0)
+        self.assertEqual(brain.pending_reward, 0.0)
+
+    def test_analyze_results_parses_current_qtable_key_format(self):
+        import json
+
+        from experiments.analyze_results import _parse_qtable
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            qtable_path = Path(temp_dir) / "qtable.json"
+            qtable_path.write_text(
+                json.dumps({
+                    json.dumps([["left", "none", "high", "low", "low", "low"], 3]): 1.25,
+                }),
+                encoding="utf-8",
+            )
+
+            parsed = _parse_qtable(str(qtable_path))
+
+        self.assertEqual(parsed[(("left", "none", "high", "low", "low", "low"), 3)], 1.25)
+
+    def test_analyze_results_uses_current_qlearning_action_labels(self):
+        from experiments import analyze_results
+
+        self.assertEqual(
+            analyze_results.ACTION_NAMES,
+            [
+                "FORWARD",
+                "TURN_LEFT",
+                "TURN_RIGHT",
+                "SLOW_FORWARD",
+                "SEEK_LIGHT_LEFT",
+                "SEEK_LIGHT_RIGHT",
+                "STOP",
+            ],
+        )
+
+    def _assert_transition_counting(self, module, run_single_kwargs):
+        """Verify that a runner module counts freeze/depletion transitions, not frames."""
+        class StubAgent:
+            def __init__(self):
+                self.name = "Bot0"
+                self.brain = types.SimpleNamespace(is_cat_frozen=False)
+                self.battery = 100
+
+        agent = StubAgent()
+
+        def fake_create_simulation_data(_canvas, brain_type="subsumption", noOfCats=None, noOfBots=None):
+            return {
+                "agents": [agent],
+                "passiveObjects": [],
+                "count": types.SimpleNamespace(dirtCollected=0),
+                "cats": [],
+                "debris_count": 0,
+                "chargers": [],
+                "start_time": 0.0,
+            }
+
+        states = [
+            (False, 100),
+            (True, 0),
+            (True, 0),
+            (False, 0),
+        ]
+
+        def fake_advance(*args, **kwargs):
+            frozen, battery = states.pop(0)
+            agent.brain.is_cat_frozen = frozen
+            agent.battery = battery
+            return args[2], {}
+
+        with patch.object(module, "create_simulation_data", side_effect=fake_create_simulation_data), \
+             patch.object(module, "advance_simulation_frame", side_effect=fake_advance):
+            result = module.run_single(**run_single_kwargs)
+
+        self.assertEqual(result["cat_freeze_count"], 1)
+        self.assertEqual(result["battery_depletions"], 1)
+
+    def test_run_experiments_counts_freeze_and_depletion_transitions_not_frames(self):
+        from experiments import run_experiments
+        self._assert_transition_counting(
+            run_experiments,
+            {"brain_type": "subsumption", "seed": 0, "frames": 4},
+        )
+
+    def test_run_generalization_counts_freeze_and_depletion_transitions_not_frames(self):
+        from experiments import run_generalization
+        self._assert_transition_counting(
+            run_generalization,
+            {"brain_type": "subsumption", "seed": 0, "frames": 4, "config_name": "standard"},
+        )
 
 
 if __name__ == "__main__":

@@ -10,7 +10,9 @@ from ui.theme import (
 )
 
 
-def _configure_ttk_style():
+def _configure_ttk_style(tk_module=None):
+    if tk_module is not None and tk_module is not tk and not hasattr(tk_module, "TkVersion"):
+        return
     try:
         from tkinter import ttk
         style = ttk.Style()
@@ -136,7 +138,7 @@ def create_main_window(tk_module=None):
     window.title(WINDOW_TITLE)
     window.configure(bg=BG_DARK)
 
-    _configure_ttk_style()
+    _configure_ttk_style(tk_module=tk_module)
 
     main_frame = tk_module.Frame(window, bg=BG_DARK)
     main_frame.pack(fill="both", expand=True)

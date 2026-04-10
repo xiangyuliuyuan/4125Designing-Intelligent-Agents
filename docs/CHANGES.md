@@ -4,6 +4,14 @@
 
 本文档记录在接手原始项目后所做的全部改动，供原项目团队参考。
 
+## 2026-04-10 修复补充
+
+本轮补充修复集中处理了回归审查中发现的三类问题：
+
+- **仿真实体生成**：初始世界创建、`add bot` 和 `add cat` 现在都会避开现有机器人和猫，消除了启动即重叠和运行中即时重叠的问题
+- **UI 行为一致性**：Brain 选择器与 `Reset` 语义保持一致；新增/删除实体会立即刷新统计面板；键盘快捷键会忽略已聚焦的控件；tooltip 会持续更新并优先显示最上层对象
+- **实验与文档工件**：Q-Learning 终局奖励更新、实验事件计数、Q-table 解析/可视化和 RQ1 数据图表已整体修正并重新生成
+
 ## 改动分类
 
 | 类别 | 数量 | 详细文档 |
@@ -80,7 +88,7 @@ ui/                  # Tkinter 组件（window、renderer、controls、control_p
 - **无头仿真模式**：`run_headless.py` 无 GUI 运行，支持脚本驱动的批量实验
 - **实验框架**：`experiments/` 包，提供 Q-Learning 训练、批量对比实验、泛化测试和统计分析/图表生成
 
-实验结论：Q-Learning 在清扫效率和泛化能力上表现最优，Subsumption 安全性最高（零猫冻结），APF 居中但稳定性不足。
+实验结论（修复后重跑）：Q-Learning 在标准对比、猫梯度和泛化测试中都保持最高平均清扫量；Subsumption 安全性最高；APF 在当前参数下效率和安全性都不占优。
 
 详见 → [new-features.md](new-features.md#5-研究问题-1替代决策架构与实验框架)、[rq1-report.md](rq1-report.md)
 
@@ -88,4 +96,4 @@ ui/                  # Tkinter 组件（window、renderer、controls、control_p
 
 ## 测试状态
 
-当前全部 61 个回归测试通过（`python -m pytest tests/ -q`）。
+当前全部 76 个回归测试通过（`python -m pytest tests/test_regressions.py -q` 与 `python3 -m unittest -q`）。

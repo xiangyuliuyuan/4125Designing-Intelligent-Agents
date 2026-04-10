@@ -147,10 +147,13 @@ GUI 模式下无法自动化运行大批量实验、收集统计数据。需要�
 
 ```bash
 python run_headless.py --seed 42 --frames 3000
+python run_headless.py --seed 42 --frames 3000 --brain-type qlearning
 ```
 
 - 支持 `--seed`、`--frames`、`--dt` 等参数
+- 支持 `--brain-type`，可直接切换 `subsumption` / `potential_field` / `qlearning`
 - 输出包含碰撞次数、猫惊跳次数、冻结事件次数等关键指标
+- 若检测到真实 `collision_detected` 事件，脚本返回非零退出码，便于 CI / 回归冒烟
 - 事件日志输出到 `logs/headless.log`，便于事后分析
 
 ### 涉及模块
@@ -180,6 +183,7 @@ python run_headless.py --seed 42 --frames 3000
 - 将传感器输入离散化为状态空间
 - 通过与环境交互学习最优策略
 - 训练后保存 Q-table（JSON 格式），推理时加载使用
+- 训练结束时会执行终局 Q 更新，避免最后一帧奖励被丢弃
 
 ### 实验框架
 
@@ -190,13 +194,18 @@ python run_headless.py --seed 42 --frames 3000
 | `train_qlearning.py` | Q-Learning 训练脚本，支持多轮次训练和 Q-table 保存 |
 | `run_experiments.py` | 批量对比实验 runner，支持标准对比、猫数量梯度、训练轮次等实验类型 |
 | `run_generalization.py` | 泛化测试，在未见过的环境配置下评估各算法 |
-| `analyze_results.py` | 统计分析与图表生成（柱状图、箱线图、雷达图、训练曲线等） |
+| `analyze_results.py` | 统计分析与图表生成（柱状图、箱线图、雷达图、训练曲线等），支持当前 Q-table 存储格式与 7 动作空间 |
 
 实验产出存放在 `experiments/` 子目录中：
 
 - `qtables/` — 训练好的 Q-table 文件
 - `results/` — 实验 CSV 数据
 - `figures/` — 生成的分析图表
+
+### 结果口径说明
+
+- `cat_freeze_count` 和 `battery_depletions` 按事件发生次数统计，只在状态从“未发生”切换为“发生”时累加
+- `docs/rq1-report.md` 和 `docs/rq1-figures/` 已按上述口径重新生成，避免将持续帧数误写成事件数量
 
 ### 涉及模块
 
