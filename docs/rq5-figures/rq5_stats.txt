@@ -1,0 +1,49 @@
+======================================================================
+RQ5: COVERAGE MAP - STATISTICS
+======================================================================
+
+--- dirt_collected ---
+  [short]
+    Subsumption    : mean=75.30  std=14.39  n=10
+    Coverage       : mean=60.90  std=14.93  n=10
+    Q-Learning     : mean=79.80  std=18.65  n=10
+  [long]
+    Subsumption    : mean=147.30  std=20.05  n=10
+    Coverage       : mean=91.80  std=25.12  n=10
+    Q-Learning     : mean=145.60  std=23.74  n=10
+
+--- final_coverage ---
+  [short]
+    Subsumption    : mean=0.1602  std=0.0167  n=10
+    Coverage       : mean=0.1349  std=0.0263  n=10
+    Q-Learning     : mean=0.1654  std=0.0267  n=10
+  [long]
+    Subsumption    : mean=0.3640  std=0.0429  n=10
+    Coverage       : mean=0.2443  std=0.0626  n=10
+    Q-Learning     : mean=0.3607  std=0.0578  n=10
+
+--- cat_freeze_count ---
+  [short]
+    Subsumption    : mean=0.00  std=0.00  n=10
+    Coverage       : mean=0.10  std=0.32  n=10
+    Q-Learning     : mean=0.50  std=0.85  n=10
+  [long]
+    Subsumption    : mean=0.50  std=0.85  n=10
+    Coverage       : mean=0.10  std=0.32  n=10
+    Q-Learning     : mean=1.40  std=1.71  n=10
+
+--- battery_depletions ---
+  [short]
+    Subsumption    : mean=0.00  std=0.00  n=10
+    Coverage       : mean=0.10  std=0.32  n=10
+    Q-Learning     : mean=0.10  std=0.32  n=10
+  [long]
+    Subsumption    : mean=0.00  std=0.00  n=10
+    Coverage       : mean=0.20  std=0.42  n=10
+    Q-Learning     : mean=0.20  std=0.63  n=10
+
+======================================================================
+T-TESTS: Subsumption vs Coverage (dirt_collected)
+======================================================================
+  [short] Subsumption vs Coverage: t=+2.196 p=0.0414 *
+  [long] Subsumption vs Coverage: t=+5.460 p=0.0000 *

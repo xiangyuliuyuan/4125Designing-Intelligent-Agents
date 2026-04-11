@@ -1,0 +1,36 @@
+======================================================================
+RQ4: REWARD FUNCTION COMPARISON - STATISTICS
+======================================================================
+
+--- dirt_collected ---
+  subsumption_baseline: mean=75.30  std=14.39  n=10
+  baseline            : mean=79.80  std=18.65  n=10
+  heavy_safety        : mean=78.30  std=16.25  n=10
+  dense_progress      : mean=80.00  std=15.50  n=10
+  energy_aware        : mean=52.80  std=9.45  n=10
+  sparse              : mean=79.20  std=12.17  n=10
+
+--- cat_freeze_count ---
+  subsumption_baseline: mean=0.00  std=0.00  n=10
+  baseline            : mean=0.50  std=0.85  n=10
+  heavy_safety        : mean=0.30  std=0.48  n=10
+  dense_progress      : mean=0.40  std=0.52  n=10
+  energy_aware        : mean=0.30  std=0.48  n=10
+  sparse              : mean=0.50  std=0.85  n=10
+
+--- battery_depletions ---
+  subsumption_baseline: mean=0.00  std=0.00  n=10
+  baseline            : mean=0.10  std=0.32  n=10
+  heavy_safety        : mean=0.30  std=0.48  n=10
+  dense_progress      : mean=0.00  std=0.00  n=10
+  energy_aware        : mean=0.10  std=0.32  n=10
+  sparse              : mean=0.10  std=0.32  n=10
+
+======================================================================
+T-TESTS: baseline vs each variant (dirt_collected)
+======================================================================
+  baseline vs subsumption_baseline: t=+0.604 p=0.5533 
+  baseline vs heavy_safety: t=+0.192 p=0.8501 
+  baseline vs dense_progress: t=-0.026 p=0.9795 
+  baseline vs energy_aware: t=+4.084 p=0.0007 *
+  baseline vs sparse: t=+0.085 p=0.9330 

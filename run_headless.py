@@ -277,7 +277,7 @@ def main(argv=None):
     parser.add_argument("--dt", type=float, default=FRAME_DT)
     parser.add_argument("--frames", type=int, default=TOTAL_FRAMES)
     parser.add_argument("--log-filename", default=DEFAULT_HEADLESS_LOG_NAME)
-    parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning"])
+    parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning", "coverage"])
     parser.add_argument("--qtable", default=None, help="Path to trained Q-table JSON (default: experiments/qtables/trained.json)")
     args = parser.parse_args(argv)
 

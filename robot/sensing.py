@@ -1,8 +1,25 @@
 import math
+import random as _random
 
 from entities.cat import Cat
 from robot.motion import wrapped_delta as _wrapped_delta
 from simulation.passive_index import get_passive_object_index
+
+# ---------------------------------------------------------------------------
+# Sensor noise injection (RQ3)
+# ---------------------------------------------------------------------------
+_noise_sigma = 0.0
+
+
+def set_noise_sigma(sigma):
+    """Set the multiplicative Gaussian noise level for all sensors."""
+    global _noise_sigma
+    _noise_sigma = sigma
+
+
+def get_noise_sigma():
+    """Return the current sensor noise sigma."""
+    return _noise_sigma
 
 
 def _is_bot(agent):
@@ -19,6 +36,9 @@ def calculate_sensor_values(sensor_positions, obj_x, obj_y, intensity, max_dista
     distR = math.sqrt(dxR * dxR + dyR * dyR)
     valL = intensity / (distL * distL) if 0 < distL < max_distance else 0.0
     valR = intensity / (distR * distR) if 0 < distR < max_distance else 0.0
+    if _noise_sigma > 0:
+        valL *= max(0.0, 1.0 + _random.gauss(0, _noise_sigma))
+        valR *= max(0.0, 1.0 + _random.gauss(0, _noise_sigma))
     return valL, valR
 
 

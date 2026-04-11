@@ -10,6 +10,7 @@ from entities import dirt
 from entities.lamp import Lamp
 from robot.bot import Bot
 from robot.brain import Brain
+from robot.brain_coverage import CoverageMapBrain
 from robot.brain_potential_field import PotentialFieldBrain
 from robot.brain_qlearning import QLearningBrain
 from simulation.passive_index import count_debris, invalidate_passive_object_index
@@ -131,6 +132,8 @@ def _make_bot(name, astar, brain_type="subsumption"):
         brain = PotentialFieldBrain(bot)
     elif brain_type == "qlearning":
         brain = QLearningBrain(bot)
+    elif brain_type == "coverage":
+        brain = CoverageMapBrain(bot)
     else:
         brain = Brain(bot)
     bot.setBrain(brain)

@@ -2,6 +2,24 @@
 
 基于 COMP4125 实践课提供的机器人吸尘器代码，扩展为多机器人自主智能体仿真系统。多个机器人在 2D 环绕边界（toroidal）环境中自主运行，执行清洁任务，同时管理电量、规避障碍物和猫、与其他机器人协调。
 
+## 目录
+
+- [快速开始](#快速开始)
+- [项目结构](#项目结构)
+- [使用的 AI 技术](#使用的-ai-技术)
+- [相对原始代码的主要改进](#相对原始代码的主要改进)
+- [Headless 实验模式](#headless-实验模式)
+- [默认仿真参数](#默认仿真参数)
+- [日志系统](#日志系统)
+- [研究问题](#研究问题)
+  - [RQ1: 三种智能体架构对比](#研究问题-1三种智能体架构的清扫性能对比)
+  - [RQ2: 机器人数量缩放](#研究问题-2机器人数量的缩放效应)
+  - [RQ3: 传感器噪声鲁棒性](#研究问题-3传感器噪声鲁棒性)
+  - [RQ4: 奖励函数设计](#研究问题-4奖励函数设计对-q-learning-的影响)
+  - [RQ5: 覆盖地图记忆导航](#研究问题-5覆盖地图记忆导航)
+- [实验运行方式](#实验运行方式)
+- [作业完成状态](#作业完成状态)
+
 ## 快速开始
 
 ```bash
@@ -45,9 +63,10 @@ simulation/
 robot/
   bot.py                 # 机器人实体（编排各子系统）
   brain.py               # 决策逻辑（Subsumption 架构）
-  brain_potential_field.py # 人工势场法决策逻辑 [研究问题1]
-  brain_qlearning.py     # Q-Learning 决策逻辑 [研究问题1]
-  sensing.py             # 传感器计算（灯光、机器人、杂物、猫、充电站）
+  brain_potential_field.py # 人工势场法决策逻辑 [RQ1]
+  brain_qlearning.py     # Q-Learning 决策逻辑 [RQ1]
+  brain_coverage.py      # 覆盖地图记忆导航 [RQ5]
+  sensing.py             # 传感器计算（含噪声注入 [RQ3]）
   motion.py              # 差速驱动运动学 & 边界环绕
   cleaning.py            # 垃圾收集逻辑
   state_view.py          # 模式推导（用于日志）
@@ -64,21 +83,35 @@ ui/
   stats_panel.py         # 统计显示面板
   theme.py               # 颜色 / 样式常量
   tooltip.py             # 工具提示组件
-experiments/                  # [研究问题1] 实验框架
+experiments/                  # 实验框架
   train_qlearning.py     # Q-Learning 训练脚本
-  run_experiments.py     # 批量对比实验 runner
-  run_generalization.py  # 泛化测试
-  analyze_results.py     # 统计分析 & 图表生成
+  run_experiments.py     # 批量对比实验 runner [RQ1]
+  run_generalization.py  # 泛化测试 [RQ1]
+  run_rq2_scaling.py     # 机器人数量缩放实验 [RQ2]
+  run_rq3_noise.py       # 传感器噪声实验 [RQ3]
+  run_rq4_rewards.py     # 奖励函数对比实验 [RQ4]
+  run_rq5_coverage.py    # 覆盖地图实验 [RQ5]
+  analyze_results.py     # RQ1 统计分析 & 图表生成
+  analyze_rq2.py         # RQ2 分析 & 图表
+  analyze_rq3.py         # RQ3 分析 & 图表
+  analyze_rq4.py         # RQ4 分析 & 图表
+  analyze_rq5.py         # RQ5 分析 & 图表
+  utils.py               # 共享工具函数
   qtables/               # 训练好的 Q-table
   results/               # 实验 CSV 数据
-  figures/               # 生成的分析图表
 tests/
   test_regressions.py    # 79 个回归测试
 docs/
-  CHANGES.md                 # 变更记录总览
-  architecture-overview.md   # 模块架构说明
-  bugfixes.md                # Bug 修复记录
-  new-features.md            # 新增功能说明
+  rq1-report.md          # 研究问题 1 报告
+  rq2-report.md          # 研究问题 2 报告
+  rq3-report.md          # 研究问题 3 报告
+  rq4-report.md          # 研究问题 4 报告
+  rq5-report.md          # 研究问题 5 报告
+  rq{1-5}-figures/       # 各 RQ 的实验图表
+  CHANGES.md             # 变更记录总览
+  architecture-overview.md # 模块架构说明
+  bugfixes.md            # Bug 修复记录
+  new-features.md        # 新增功能说明
 ```
 
 ## 使用的 AI 技术
@@ -112,6 +145,27 @@ docs/
 - **猫侧**：可配置距离内触发 panic-jump（惊跳远离）
 - **引擎层安全网**：基于物理距离的冻结机制，即使传感器盲区也能防止碰撞
 
+### 4. 人工势场法（APF）
+
+`robot/brain_potential_field.py` 实现基于力场梯度的导航：
+- **引力**：光源（垃圾区域）+ 充电站（低电量时 10 倍权重）
+- **斥力**：猫（8 倍）、碎片（4 倍）、其他机器人（1.5 倍）
+- 转向平滑滤波器减少抖动
+
+### 5. Q-Learning 强化学习
+
+`robot/brain_qlearning.py` 实现表格式 Q-Learning：
+- 6 维离散状态空间（光方向、充电方向、电量、猫危险、碎片危险、机器人危险）
+- 7 个动作（前进、左转、右转、慢速前进、寻光左/右、停止）
+- 训练参数：α=0.1, γ=0.95, ε: 1.0→0.05
+
+### 6. 覆盖地图记忆导航
+
+`robot/brain_coverage.py` 在 Subsumption 安全层之上增加空间记忆：
+- 将世界划分为 50×50 网格，记录每个格子的访问次数
+- 默认行为从随机漫游改为向最少访问的格子导航
+- 使用差速驱动比例控制进行转向
+
 ## 相对原始代码的主要改进
 
 本项目基于课堂提供的单文件机器人仿真进行扩展，主要改动：
@@ -134,6 +188,9 @@ python run_headless.py --seed 42 --frames 3000
 
 # 切换智能体架构（Q-Learning 需指定训练好的 Q-table）
 python run_headless.py --seed 123 --frames 5000 --dt 1.0 --brain-type qlearning --qtable experiments/qtables/trained.json
+
+# 覆盖地图大脑
+python run_headless.py --brain-type coverage --frames 5000
 
 # 输出包含碰撞次数、猫惊跳次数、冻结事件次数
 ```
@@ -167,9 +224,21 @@ tick=142 event=charging_started bot=Bot-1 charger=Charger-2 battery=587
 tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 ```
 
+---
+
 ## 研究问题
 
-### 研究问题 1：三种智能体架构的清扫性能对比 `[已完成]`
+| RQ | 研究问题 | 核心发现 | 报告 |
+|----|----------|----------|------|
+| [RQ1](#研究问题-1三种智能体架构的清扫性能对比) | 三种架构对比 | Q-Learning 综合最优，Subsumption 最安全 | [报告](docs/rq1-report.md) |
+| [RQ2](#研究问题-2机器人数量的缩放效应) | 机器人数量缩放 | 亚线性缩放，3-5 个最优，10 个时每机器人效率仅 40% | [报告](docs/rq2-report.md) |
+| [RQ3](#研究问题-3传感器噪声鲁棒性) | 传感器噪声鲁棒性 | 清扫稳健但安全性崩溃，APF 猫冻结 1.8→36.6 | [报告](docs/rq3-report.md) |
+| [RQ4](#研究问题-4奖励函数设计对-q-learning-的影响) | 奖励函数设计 | 过度惩罚导致灾难性退化（Energy Aware: 52.8 vs 79.8） | [报告](docs/rq4-report.md) |
+| [RQ5](#研究问题-5覆盖地图记忆导航) | 覆盖地图记忆 | 空间记忆反而损害效率，随机漫游覆盖更广 | [报告](docs/rq5-report.md) |
+
+---
+
+### 研究问题 1：三种智能体架构的清扫性能对比
 
 > **问题**：规则型（Subsumption）、反应型（人工势场法）、学习型（Q-Learning）三种根本不同的智能体架构，在清扫任务中表现如何？各自的优劣势是什么？
 >
@@ -185,7 +254,7 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 
 #### 核心结论
 
-在修复实验统计口径并重新生成 RQ1 全部结果后，**Q-Learning 仍然取得最高平均清扫量**，但标准对比中的清扫量差异在当前 `10` 个 seed 样本下并未达到统计显著。当前更准确的结论是：Subsumption 最安全，Q-Learning 综合表现最好，Potential Field 在当前参数下既不够安全也不够高效。
+**Q-Learning 仍然取得最高平均清扫量**，但标准对比中的差异在 10 个 seed 下未达统计显著。Subsumption 最安全，Q-Learning 综合最好，Potential Field 在当前参数下既不够安全也不够高效。
 
 | 特征 | Subsumption | Potential Field | Q-Learning |
 |------|------------|-----------------|------------|
@@ -194,68 +263,186 @@ tick=300 event=collision_detected bot=Bot-2 cat=Cat-1 distance=28.5
 | 电量管理（平均耗尽次数） | **0.0** | **0.0** | 0.1 |
 | 泛化表现 | 稳定但保守 | 波动较大 | **四种环境均最高** |
 
-#### 实验结果展示
-
-**标准对比** — Q-Learning 平均清扫量最高，但当前样本下三组 dirt collected 差异均未达显著；显著差异只出现在 Subsumption 与 APF 的猫冻结次数上（`p=0.012`）：
-
 <p align="center">
   <img src="docs/rq1-figures/bar_dirt_collected.png" width="45%" />
   <img src="docs/rq1-figures/box_collection_rate.png" width="45%" />
 </p>
 
-**猫数量鲁棒性** — Q-Learning 在 `0-8` 只猫的全部设置下都保持最高或并列最高的平均清扫量：
-
 <p align="center">
-  <img src="docs/rq1-figures/line_cat_gradient.png" width="60%" />
+  <img src="docs/rq1-figures/line_cat_gradient.png" width="45%" />
+  <img src="docs/rq1-figures/radar_comparison.png" width="45%" />
 </p>
 
-**泛化测试** — Q-Learning 在四个未重新训练的环境里都取得最高平均得分：
+---
 
-| 环境 | Subsumption | APF | Q-Learning | 相对次优优势 |
-|------|------------|-----|------------|-------------|
-| 标准 (3bot, 4cat) | 75.3 | 69.1 | **79.8** | +4.5 vs Subsumption |
-| 单机器人 (1bot, 4cat) | 30.8 | 25.6 | **35.8** | +5.0 vs Subsumption |
-| 多机器人 (5bot, 4cat) | 95.7 | 89.5 | **102.2** | +6.5 vs Subsumption |
-| 困难模式 (1bot, 8cat) | 23.6 | 23.5 | **27.5** | +3.9 vs Subsumption |
+### 研究问题 2：机器人数量的缩放效应
+> **问题**：清扫性能如何随机器人数量（1-10）缩放？边际收益递减从何处开始？
+>
+> **详细报告**：[docs/rq2-report.md](docs/rq2-report.md)
 
-**训练曲线与训练轮次效果** — 最佳平均成绩出现在 `100` 轮训练（`88.6`），而 `25` 轮已达到 `86.6`；更长训练轮次并未单调提升，说明当前奖励设计和训练稳定性仍有改进空间：
+#### 实验设计
+
+- 机器人数量：1, 2, 3, 5, 7, 10
+- 3 种大脑 × 6 种数量 × 10 个 seed = **180 次**实验
+
+#### 核心结论
+
+系统呈现明显的**亚线性缩放**。3-5 个机器人是效率最优区间，超过 7 个后安全性和充电站争用显著恶化。
+
+| 机器人数 | Subsumption | APF | Q-Learning | 每机器人效率 (QL) |
+|----------|-------------|-----|------------|------------------|
+| 1 | 30.8 | 25.6 | **35.8** | 35.8 |
+| 3 | 75.3 | 69.1 | **79.8** | 26.6 |
+| 5 | 95.7 | 89.5 | **102.2** | 20.4 |
+| 10 | 126.6 | 120.5 | **133.6** | 13.4 |
 
 <p align="center">
-  <img src="docs/rq1-figures/training_curve_reward.png" width="45%" />
-  <img src="docs/rq1-figures/line_training_duration.png" width="45%" />
+  <img src="docs/rq2-figures/line_scaling_total.png" width="45%" />
+  <img src="docs/rq2-figures/line_scaling_per_bot.png" width="45%" />
 </p>
 
-#### 实验运行方式
+<p align="center">
+  <img src="docs/rq2-figures/bar_scaling_safety.png" width="60%" />
+</p>
+
+---
+
+### 研究问题 3：传感器噪声鲁棒性
+> **问题**：各架构对传感器噪声的敏感程度如何？哪种架构退化最优雅？
+>
+> **详细报告**：[docs/rq3-report.md](docs/rq3-report.md)
+
+#### 实验设计
+
+- 噪声模型：乘性高斯噪声 `signal *= max(0, 1 + N(0, σ))`
+- 噪声等级 σ：0.0, 0.1, 0.2, 0.3, 0.5, 1.0
+- 3 种大脑 × 6 种噪声 × 10 个 seed = **180 次**实验
+
+#### 核心结论
+
+**清扫性能对噪声惊人地稳健**（所有 p > 0.2），但**安全性急剧退化**。人工势场法的猫冻结次数从 1.8 爆增至 36.6（p<0.001），Q-Learning 从 0.5 增至 9.8（p<0.001）。Subsumption 的硬阈值提供了部分保护，仅在 σ=1.0 时显著退化。
+
+| σ | Subsumption 冻结 | APF 冻结 | Q-Learning 冻结 |
+|---|-----------------|----------|-----------------|
+| 0.0 | 0.0 | 1.8 | 0.5 |
+| 0.5 | 1.3 | **15.2** (p<0.001) | **3.3** (p=0.002) |
+| 1.0 | **6.4** (p<0.001) | **36.6** (p<0.001) | **9.8** (p<0.001) |
+
+<p align="center">
+  <img src="docs/rq3-figures/line_noise_degradation.png" width="45%" />
+  <img src="docs/rq3-figures/line_noise_safety.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="docs/rq3-figures/bar_noise_relative.png" width="60%" />
+</p>
+
+---
+
+### 研究问题 4：奖励函数设计对 Q-Learning 的影响
+> **问题**：不同奖励函数设计如何影响 Q-Learning 的清扫性能、训练稳定性和安全性？
+>
+> **详细报告**：[docs/rq4-report.md](docs/rq4-report.md)
+
+#### 五种奖励变体
+
+| 变体 | 奖励组成 |
+|------|----------|
+| **Baseline** | +10/dirt, -0.1/帧, -20/电量耗尽 |
+| **Heavy Safety** | Baseline + 接近猫每帧 -5.0, 冻结 -20.0 |
+| **Dense Progress** | Baseline + 接近光源 +2.0 |
+| **Energy Aware** | Baseline + 充电中 +5.0, 电量<300 每帧 -3.0 |
+| **Sparse** | 仅 +10/dirt（无其他惩罚） |
+
+#### 核心结论
+
+**奖励设计能显著影响学习效果，但方向不一定符合直觉。** Energy Aware 由于过度惩罚低电量，性能**灾难性下降**（52.8 vs 79.8，p=0.0007）。Dense Progress 和 Sparse 与 Baseline 持平，说明粗粒度状态空间是性能瓶颈，而非奖励信号。
+
+| 变体 | 平均 Dirt | 猫冻结 | 电量耗尽 |
+|------|-----------|--------|----------|
+| Subsumption (参考) | 75.3 | 0.0 | 0.0 |
+| Baseline | **79.8** | 0.5 | 0.1 |
+| Heavy Safety | 78.3 | 0.3 | 0.3 |
+| Dense Progress | **80.0** | 0.4 | 0.0 |
+| **Energy Aware** | **52.8** | 0.3 | 0.1 |
+| Sparse | 79.2 | 0.5 | 0.1 |
+
+<p align="center">
+  <img src="docs/rq4-figures/bar_reward_comparison.png" width="45%" />
+  <img src="docs/rq4-figures/line_reward_training.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="docs/rq4-figures/box_reward_stability.png" width="45%" />
+  <img src="docs/rq4-figures/bar_reward_safety.png" width="45%" />
+</p>
+
+---
+
+### 研究问题 5：覆盖地图记忆导航
+> **问题**：赋予机器人空间记忆（已访问格子地图）能否提升清扫效率？
+>
+> **详细报告**：[docs/rq5-report.md](docs/rq5-report.md)
+
+#### 实验设计
+
+- 对比：Subsumption（无记忆）vs Coverage（记忆增强）vs Q-Learning
+- 运行时长：短（1500 帧）和 长（5000 帧）
+- 3 种大脑 × 2 种时长 × 10 个 seed = **60 次**实验
+- 额外指标：使用外部网格追踪所有大脑类型的覆盖率
+
+#### 核心结论
+
+覆盖地图记忆**显著损害清扫效率**（短: p=0.041, 长: p<0.001）。更出人意料的是，覆盖大脑的**实际覆盖面积也更低**（24.4% vs Subsumption 的 36.4%），因为确定性的"最近未访问格子"策略形成狭窄路径，而随机漫游+回避行为的随机性反而让机器人分布更广。
+
+| 大脑 | 短期 Dirt | 长期 Dirt | 短期覆盖率 | 长期覆盖率 |
+|------|-----------|-----------|-----------|-----------|
+| Subsumption | **75.3** | **147.3** | **16.0%** | **36.4%** |
+| Coverage | 60.9 | 91.8 | 13.5% | 24.4% |
+| Q-Learning | **79.8** | **145.6** | **16.5%** | **36.1%** |
+
+<p align="center">
+  <img src="docs/rq5-figures/bar_coverage_comparison.png" width="45%" />
+  <img src="docs/rq5-figures/line_coverage_over_time.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="docs/rq5-figures/bar_coverage_safety.png" width="60%" />
+</p>
+
+---
+
+## 实验运行方式
 
 ```bash
-# 1. 训练 Q-Learning 智能体
+# ===== RQ1: 三种架构对比 =====
 python experiments/train_qlearning.py --episodes 200 --frames 1500
-
-# 2. 标准对比实验
 python experiments/run_experiments.py --experiment-type comparison --seeds 10 --frames 1500
-
-# 3. 猫数量梯度实验
 python experiments/run_experiments.py --experiment-type cat_gradient --seeds 10 --frames 1500
-
-# 4. 训练轮次实验
 python experiments/run_experiments.py --experiment-type training_duration --seeds 10 --frames 1500
-
-# 5. 泛化测试
 python experiments/run_generalization.py --seeds 10 --frames 1500 --qtable experiments/qtables/trained.json
-
-# 6. 生成图表
 python experiments/analyze_results.py --comparison experiments/results/comparison.csv \
   --training experiments/results/training_curve.csv \
   --cat-gradient experiments/results/cat_gradient.csv \
   --training-duration experiments/results/training_duration.csv \
   --qtable experiments/qtables/trained.json --output-dir docs/rq1-figures
+
+# ===== RQ2: 机器人数量缩放 =====
+python experiments/run_rq2_scaling.py --seeds 10 --frames 1500
+python experiments/analyze_rq2.py --output-dir docs/rq2-figures
+
+# ===== RQ3: 传感器噪声鲁棒性 =====
+python experiments/run_rq3_noise.py --seeds 10 --frames 1500
+python experiments/analyze_rq3.py --output-dir docs/rq3-figures
+
+# ===== RQ4: 奖励函数设计 =====
+python experiments/run_rq4_rewards.py --training-episodes 200 --seeds 10 --frames 1500
+python experiments/analyze_rq4.py --output-dir docs/rq4-figures
+
+# ===== RQ5: 覆盖地图记忆 =====
+python experiments/run_rq5_coverage.py --seeds 10 --short-frames 1500 --long-frames 5000
+python experiments/analyze_rq5.py --output-dir docs/rq5-figures
 ```
-
-### 研究问题 2-5：待定
-
-> 每位组员各负责一个研究问题，待分配。
-
----
 
 ## 作业完成状态
 
@@ -268,10 +455,13 @@ python experiments/analyze_results.py --comparison experiments/results/compariso
 - [x] 回归测试（79 个）
 - [x] Headless 实验模式基础设施
 - [x] 结构化日志系统
-- [x] **研究问题 1**：三种Brain实现（APF + Q-Learning）、训练、实验、图表生成
+- [x] **RQ1**：三种 Brain 架构对比（Subsumption / APF / Q-Learning）
+- [x] **RQ2**：机器人数量缩放实验（1-10 个机器人）
+- [x] **RQ3**：传感器噪声鲁棒性（6 种噪声等级）
+- [x] **RQ4**：奖励函数设计对比（5 种奖励变体）
+- [x] **RQ5**：覆盖地图记忆导航（新大脑类型）
 
 ### 待完成
 
-- [ ] **研究问题 2-5**（其他组员各负责一个）
 - [ ] **撰写报告**（4000-8000 字，含文献综述、实验设计、结果分析、反思总结、成员分工）
 - [ ] **准备 Presentation**（15 分钟小组演示）

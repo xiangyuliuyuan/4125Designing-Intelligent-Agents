@@ -1,0 +1,120 @@
+======================================================================
+RQ2: ROBOT COUNT SCALING - STATISTICS
+======================================================================
+
+--- dirt_collected ---
+  Subsumption:
+    bots= 1: mean=30.80  std=10.02  n=10
+    bots= 2: mean=56.10  std=8.69  n=10
+    bots= 3: mean=75.30  std=14.39  n=10
+    bots= 5: mean=95.70  std=13.70  n=10
+    bots= 7: mean=120.10  std=21.90  n=10
+    bots=10: mean=126.60  std=18.37  n=10
+  Potential Field:
+    bots= 1: mean=25.60  std=5.52  n=10
+    bots= 2: mean=55.70  std=8.81  n=10
+    bots= 3: mean=69.10  std=9.55  n=10
+    bots= 5: mean=89.50  std=16.07  n=10
+    bots= 7: mean=99.90  std=10.97  n=10
+    bots=10: mean=120.50  std=15.87  n=10
+  Q-Learning:
+    bots= 1: mean=35.80  std=7.80  n=10
+    bots= 2: mean=53.20  std=13.95  n=10
+    bots= 3: mean=79.80  std=18.65  n=10
+    bots= 5: mean=102.20  std=25.73  n=10
+    bots= 7: mean=117.20  std=16.76  n=10
+    bots=10: mean=133.60  std=19.74  n=10
+
+--- dirt_per_bot ---
+  Subsumption:
+    bots= 1: mean=30.80  std=10.02  n=10
+    bots= 2: mean=28.05  std=4.34  n=10
+    bots= 3: mean=25.10  std=4.80  n=10
+    bots= 5: mean=19.14  std=2.74  n=10
+    bots= 7: mean=17.16  std=3.13  n=10
+    bots=10: mean=12.66  std=1.84  n=10
+  Potential Field:
+    bots= 1: mean=25.60  std=5.52  n=10
+    bots= 2: mean=27.85  std=4.40  n=10
+    bots= 3: mean=23.03  std=3.18  n=10
+    bots= 5: mean=17.90  std=3.21  n=10
+    bots= 7: mean=14.27  std=1.57  n=10
+    bots=10: mean=12.05  std=1.59  n=10
+  Q-Learning:
+    bots= 1: mean=35.80  std=7.80  n=10
+    bots= 2: mean=26.60  std=6.98  n=10
+    bots= 3: mean=26.60  std=6.22  n=10
+    bots= 5: mean=20.44  std=5.15  n=10
+    bots= 7: mean=16.74  std=2.39  n=10
+    bots=10: mean=13.36  std=1.97  n=10
+
+--- cat_freeze_count ---
+  Subsumption:
+    bots= 1: mean=0.00  std=0.00  n=10
+    bots= 2: mean=0.00  std=0.00  n=10
+    bots= 3: mean=0.00  std=0.00  n=10
+    bots= 5: mean=0.20  std=0.42  n=10
+    bots= 7: mean=0.30  std=0.48  n=10
+    bots=10: mean=0.60  std=0.70  n=10
+  Potential Field:
+    bots= 1: mean=1.20  std=1.75  n=10
+    bots= 2: mean=1.50  std=1.58  n=10
+    bots= 3: mean=1.80  std=2.04  n=10
+    bots= 5: mean=4.70  std=4.00  n=10
+    bots= 7: mean=7.00  std=5.14  n=10
+    bots=10: mean=5.70  std=5.33  n=10
+  Q-Learning:
+    bots= 1: mean=0.10  std=0.32  n=10
+    bots= 2: mean=0.20  std=0.42  n=10
+    bots= 3: mean=0.50  std=0.85  n=10
+    bots= 5: mean=0.50  std=0.53  n=10
+    bots= 7: mean=0.60  std=0.84  n=10
+    bots=10: mean=1.00  std=1.49  n=10
+
+--- battery_depletions ---
+  Subsumption:
+    bots= 1: mean=0.00  std=0.00  n=10
+    bots= 2: mean=0.00  std=0.00  n=10
+    bots= 3: mean=0.00  std=0.00  n=10
+    bots= 5: mean=0.60  std=0.70  n=10
+    bots= 7: mean=1.30  std=0.48  n=10
+    bots=10: mean=3.80  std=0.79  n=10
+  Potential Field:
+    bots= 1: mean=0.00  std=0.00  n=10
+    bots= 2: mean=0.00  std=0.00  n=10
+    bots= 3: mean=0.00  std=0.00  n=10
+    bots= 5: mean=0.80  std=0.79  n=10
+    bots= 7: mean=1.60  std=0.84  n=10
+    bots=10: mean=4.60  std=1.26  n=10
+  Q-Learning:
+    bots= 1: mean=0.00  std=0.00  n=10
+    bots= 2: mean=0.20  std=0.42  n=10
+    bots= 3: mean=0.10  std=0.32  n=10
+    bots= 5: mean=0.80  std=1.23  n=10
+    bots= 7: mean=1.50  std=1.08  n=10
+    bots=10: mean=4.30  std=1.06  n=10
+
+======================================================================
+PAIRWISE T-TESTS (dirt_collected, adjacent bot counts)
+======================================================================
+
+  Subsumption:
+    1 vs 2: t=-6.034 p=0.0000 *
+    2 vs 3: t=-3.612 p=0.0020 *
+    3 vs 5: t=-3.247 p=0.0045 *
+    5 vs 7: t=-2.987 p=0.0079 *
+    7 vs 10: t=-0.719 p=0.4814 
+
+  Potential Field:
+    1 vs 2: t=-9.157 p=0.0000 *
+    2 vs 3: t=-3.262 p=0.0043 *
+    3 vs 5: t=-3.451 p=0.0029 *
+    5 vs 7: t=-1.690 p=0.1082 
+    7 vs 10: t=-3.377 p=0.0034 *
+
+  Q-Learning:
+    1 vs 2: t=-3.443 p=0.0029 *
+    2 vs 3: t=-3.612 p=0.0020 *
+    3 vs 5: t=-2.229 p=0.0388 *
+    5 vs 7: t=-1.545 p=0.1398 
+    7 vs 10: t=-2.003 p=0.0605 

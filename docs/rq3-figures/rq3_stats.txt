@@ -1,0 +1,122 @@
+======================================================================
+RQ3: SENSOR NOISE ROBUSTNESS - STATISTICS
+======================================================================
+
+--- dirt_collected ---
+  Subsumption:
+    sigma=0.0: mean=75.30  std=14.39  n=10
+    sigma=0.1: mean=81.80  std=14.95  n=10
+    sigma=0.2: mean=68.80  std=18.93  n=10
+    sigma=0.3: mean=72.30  std=16.12  n=10
+    sigma=0.5: mean=67.10  std=17.50  n=10
+    sigma=1.0: mean=69.10  std=13.49  n=10
+  Potential Field:
+    sigma=0.0: mean=69.10  std=9.55  n=10
+    sigma=0.1: mean=67.80  std=15.35  n=10
+    sigma=0.2: mean=65.50  std=13.48  n=10
+    sigma=0.3: mean=65.80  std=15.74  n=10
+    sigma=0.5: mean=65.00  std=11.16  n=10
+    sigma=1.0: mean=66.00  std=10.53  n=10
+  Q-Learning:
+    sigma=0.0: mean=79.80  std=18.65  n=10
+    sigma=0.1: mean=81.50  std=9.36  n=10
+    sigma=0.2: mean=84.50  std=13.69  n=10
+    sigma=0.3: mean=79.70  std=12.81  n=10
+    sigma=0.5: mean=79.00  std=14.21  n=10
+    sigma=1.0: mean=70.10  std=16.23  n=10
+
+--- cat_freeze_count ---
+  Subsumption:
+    sigma=0.0: mean=0.00  std=0.00  n=10
+    sigma=0.1: mean=0.20  std=0.42  n=10
+    sigma=0.2: mean=0.40  std=1.26  n=10
+    sigma=0.3: mean=0.20  std=0.42  n=10
+    sigma=0.5: mean=1.30  std=2.75  n=10
+    sigma=1.0: mean=6.40  std=3.92  n=10
+  Potential Field:
+    sigma=0.0: mean=1.80  std=2.04  n=10
+    sigma=0.1: mean=3.10  std=2.96  n=10
+    sigma=0.2: mean=7.60  std=4.25  n=10
+    sigma=0.3: mean=3.40  std=2.99  n=10
+    sigma=0.5: mean=15.20  std=8.97  n=10
+    sigma=1.0: mean=36.60  std=12.43  n=10
+  Q-Learning:
+    sigma=0.0: mean=0.50  std=0.85  n=10
+    sigma=0.1: mean=0.60  std=0.70  n=10
+    sigma=0.2: mean=0.80  std=0.42  n=10
+    sigma=0.3: mean=1.70  std=0.95  n=10
+    sigma=0.5: mean=3.30  std=2.31  n=10
+    sigma=1.0: mean=9.80  std=3.39  n=10
+
+--- battery_depletions ---
+  Subsumption:
+    sigma=0.0: mean=0.00  std=0.00  n=10
+    sigma=0.1: mean=0.00  std=0.00  n=10
+    sigma=0.2: mean=0.00  std=0.00  n=10
+    sigma=0.3: mean=0.10  std=0.32  n=10
+    sigma=0.5: mean=0.20  std=0.63  n=10
+    sigma=1.0: mean=0.10  std=0.32  n=10
+  Potential Field:
+    sigma=0.0: mean=0.00  std=0.00  n=10
+    sigma=0.1: mean=0.00  std=0.00  n=10
+    sigma=0.2: mean=0.10  std=0.32  n=10
+    sigma=0.3: mean=0.30  std=0.67  n=10
+    sigma=0.5: mean=0.10  std=0.32  n=10
+    sigma=1.0: mean=0.00  std=0.00  n=10
+  Q-Learning:
+    sigma=0.0: mean=0.10  std=0.32  n=10
+    sigma=0.1: mean=0.00  std=0.00  n=10
+    sigma=0.2: mean=0.00  std=0.00  n=10
+    sigma=0.3: mean=0.00  std=0.00  n=10
+    sigma=0.5: mean=0.20  std=0.42  n=10
+    sigma=1.0: mean=0.00  std=0.00  n=10
+
+======================================================================
+T-TESTS: sigma=0 vs each noise level (dirt_collected)
+======================================================================
+
+  Subsumption:
+    0.0 vs 0.1: t=-0.991 p=0.3351 
+    0.0 vs 0.2: t=+0.865 p=0.3987 
+    0.0 vs 0.3: t=+0.439 p=0.6659 
+    0.0 vs 0.5: t=+1.145 p=0.2674 
+    0.0 vs 1.0: t=+0.994 p=0.3335 
+
+  Potential Field:
+    0.0 vs 0.1: t=+0.227 p=0.8227 
+    0.0 vs 0.2: t=+0.689 p=0.4995 
+    0.0 vs 0.3: t=+0.567 p=0.5778 
+    0.0 vs 0.5: t=+0.883 p=0.3889 
+    0.0 vs 1.0: t=+0.690 p=0.4993 
+
+  Q-Learning:
+    0.0 vs 0.1: t=-0.258 p=0.7996 
+    0.0 vs 0.2: t=-0.642 p=0.5286 
+    0.0 vs 0.3: t=+0.014 p=0.9890 
+    0.0 vs 0.5: t=+0.108 p=0.9153 
+    0.0 vs 1.0: t=+1.241 p=0.2306 
+
+======================================================================
+T-TESTS: sigma=0 vs each noise level (cat_freeze_count)
+======================================================================
+
+  Subsumption:
+    0.0 vs 0.1: t=-1.500 p=0.1510 
+    0.0 vs 0.2: t=-1.000 p=0.3306 
+    0.0 vs 0.3: t=-1.500 p=0.1510 
+    0.0 vs 0.5: t=-1.494 p=0.1524 
+    0.0 vs 1.0: t=-5.161 p=0.0001 *
+
+  Potential Field:
+    0.0 vs 0.1: t=-1.143 p=0.2682 
+    0.0 vs 0.2: t=-3.891 p=0.0011 *
+    0.0 vs 0.3: t=-1.397 p=0.1793 
+    0.0 vs 0.5: t=-4.608 p=0.0002 *
+    0.0 vs 1.0: t=-8.736 p=0.0000 *
+
+  Q-Learning:
+    0.0 vs 0.1: t=-0.287 p=0.7771 
+    0.0 vs 0.2: t=-1.000 p=0.3306 
+    0.0 vs 0.3: t=-2.979 p=0.0080 *
+    0.0 vs 0.5: t=-3.595 p=0.0021 *
+    0.0 vs 1.0: t=-8.408 p=0.0000 *
