@@ -109,10 +109,19 @@ def _find_clear_position(placed_objects, clearance, margin=100,
 
 
 def buttonClicked(x, y, agents):
+    nearest = None
+    best_dist_sq = float("inf")
     for agent in agents:
         if isinstance(agent, Bot):
-            agent.x = x
-            agent.y = y
+            dx = agent.x - x
+            dy = agent.y - y
+            dist_sq = dx * dx + dy * dy
+            if dist_sq < best_dist_sq:
+                best_dist_sq = dist_sq
+                nearest = agent
+    if nearest is not None:
+        nearest.x = x
+        nearest.y = y
 
 
 def _make_bot(name, astar, brain_type="subsumption"):

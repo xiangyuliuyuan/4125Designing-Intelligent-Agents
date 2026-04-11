@@ -6,9 +6,12 @@ import traceback
 import argparse
 from pathlib import Path
 
+import os
+
 from app.context import create_simulation_data
 from app.logging_config import configure_logging, get_logger, log_event, reset_logging
 from robot import sensing
+from robot.brain_qlearning import QLearningBrain
 from simulation import runtime
 from simulation.engine import advance_simulation_frame
 
@@ -19,6 +22,7 @@ TOTAL_FRAMES = 3000
 FRAME_DT = 1.0
 DEFAULT_HEADLESS_LOG_NAME = "headless.log"
 HEADLESS_LOG_PATH = Path("logs") / DEFAULT_HEADLESS_LOG_NAME
+DEFAULT_QTABLE_PATH = os.path.join(os.path.dirname(__file__), "experiments", "qtables", "trained.json")
 
 
 class FakeCanvas:
@@ -177,7 +181,19 @@ def initialise_world(canvas, seed, brain_type="subsumption"):
     )
 
 
-def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAULT_HEADLESS_LOG_NAME, emit_stdout=True, brain_type="subsumption"):
+def _load_qtable_for_agents(agents, qtable_path, brain_type):
+    if brain_type != "qlearning":
+        return
+    if not qtable_path or not os.path.exists(qtable_path):
+        logger.warning("brain_type is qlearning but no trained Q-table found at '%s'; agents will use an untrained random policy", qtable_path)
+        return
+    for agent in agents:
+        if hasattr(agent, "brain") and isinstance(agent.brain, QLearningBrain):
+            agent.brain.load_qtable(qtable_path)
+            agent.brain.set_training(False)
+
+
+def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAULT_HEADLESS_LOG_NAME, emit_stdout=True, brain_type="subsumption", qtable_path=None):
     runtime.reset()
     log_path = Path("logs") / log_filename
     reset_headless_log_files(log_path)
@@ -193,6 +209,9 @@ def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAU
     canvas = FakeCanvas()
     stats_vars = make_stats_vars()
     agents, passive_objects, count, cats, debris_count, chargers, start_time = initialise_world(canvas, seed, brain_type=brain_type)
+    if qtable_path is None and brain_type == "qlearning":
+        qtable_path = DEFAULT_QTABLE_PATH
+    _load_qtable_for_agents(agents, qtable_path, brain_type)
 
     try:
         for _ in range(frames):
@@ -259,6 +278,7 @@ def main(argv=None):
     parser.add_argument("--frames", type=int, default=TOTAL_FRAMES)
     parser.add_argument("--log-filename", default=DEFAULT_HEADLESS_LOG_NAME)
     parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning"])
+    parser.add_argument("--qtable", default=None, help="Path to trained Q-table JSON (default: experiments/qtables/trained.json)")
     args = parser.parse_args(argv)
 
     result = run_simulation(
@@ -268,6 +288,7 @@ def main(argv=None):
         log_filename=args.log_filename,
         emit_stdout=True,
         brain_type=args.brain_type,
+        qtable_path=args.qtable,
     )
     return result["exit_code"]
 

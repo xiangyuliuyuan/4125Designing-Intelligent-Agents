@@ -37,11 +37,14 @@ def run_single(brain_type, seed, frames, qtable_path=None, noOfCats=None, noOfBo
     start_time = sim_data["start_time"]
 
     # For Q-Learning: load trained Q-table and set to eval mode
-    if brain_type == "qlearning" and qtable_path and os.path.exists(qtable_path):
-        for agent in agents:
-            if hasattr(agent, 'brain') and isinstance(agent.brain, QLearningBrain):
-                agent.brain.load_qtable(qtable_path)
-                agent.brain.set_training(False)
+    if brain_type == "qlearning":
+        if qtable_path and os.path.exists(qtable_path):
+            for agent in agents:
+                if hasattr(agent, 'brain') and isinstance(agent.brain, QLearningBrain):
+                    agent.brain.load_qtable(qtable_path)
+                    agent.brain.set_training(False)
+        else:
+            print(f"WARNING: brain_type=qlearning but Q-table not found at '{qtable_path}'; agents will use untrained random policy")
 
     cat_freeze_count = 0
     battery_depletions = 0

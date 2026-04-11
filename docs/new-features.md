@@ -121,8 +121,8 @@ tick=143 event=path_not_found bot=Bot-1 reason=start_blocked
 
 **调度层：主循环传入猫列表，并追加物理距离冻结**
 - `simulation/engine.py` 主循环调用 `agent.thinkAndAct(agents, passiveObjects, cats)`，确保猫感知真正进入决策链路
-- 由于前置传感器对侧后方存在盲区，主循环在每帧 `bot.update()` 之后额外计算所有 `(bot, cat)` 的环形最短物理距离
-- 当距离 < `90px` 时，直接回退该帧机器人的位姿并强制 `sl/sr = 0`，记录 `bot.physical_cat_freeze`
+- 由于前置传感器对侧后方存在盲区，主循环在每帧 `bot.update()` **之前**预先计算所有 `(bot, cat)` 的环形最短物理距离
+- 当距离 < `90px` 时，在 `agent.update()` 执行前设置 `force_cat_freeze` 标志，使大脑在该帧强制将轮速清零；`update()` 结束后在 `finally` 块中清除该标志，记录 `bot.physical_cat_freeze`
 - 这层保护不依赖传感器信号，作为避猫 steering 之外的最后一道硬约束，专门兜住跨边界、侧后方接近和多机器人夹击场景
 
 ### 涉及模块
@@ -147,11 +147,12 @@ GUI 模式下无法自动化运行大批量实验、收集统计数据。需要�
 
 ```bash
 python run_headless.py --seed 42 --frames 3000
-python run_headless.py --seed 42 --frames 3000 --brain-type qlearning
+python run_headless.py --seed 42 --frames 3000 --brain-type qlearning --qtable experiments/qtables/trained.json
 ```
 
 - 支持 `--seed`、`--frames`、`--dt` 等参数
 - 支持 `--brain-type`，可直接切换 `subsumption` / `potential_field` / `qlearning`
+- 使用 `--brain-type qlearning` 时，需通过 `--qtable` 指定训练好的 Q-table 路径（默认 `experiments/qtables/trained.json`）；若文件不存在，会输出警告并以未训练的随机策略运行
 - 输出包含碰撞次数、猫惊跳次数、冻结事件次数等关键指标
 - 若检测到真实 `collision_detected` 事件，脚本返回非零退出码，便于 CI / 回归冒烟
 - 事件日志输出到 `logs/headless.log`，便于事后分析

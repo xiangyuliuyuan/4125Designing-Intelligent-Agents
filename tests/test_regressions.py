@@ -923,6 +923,20 @@ class RegressionTests(unittest.TestCase):
         self.assertFalse(charger.is_charging)
         self.assertIsNone(charger.charging_bot)
 
+    def test_button_clicked_moves_only_nearest_bot(self):
+        bot_a = self.make_bot("Bot0")
+        bot_b = self.make_bot("Bot1")
+        bot_c = self.make_bot("Bot2")
+        bot_a.x, bot_a.y = 100, 100
+        bot_b.x, bot_b.y = 300, 300
+        bot_c.x, bot_c.y = 700, 700
+
+        self.mod.buttonClicked(290, 295, [bot_a, bot_b, bot_c])
+
+        self.assertEqual((bot_a.x, bot_a.y), (100, 100))
+        self.assertEqual((bot_b.x, bot_b.y), (290, 295))
+        self.assertEqual((bot_c.x, bot_c.y), (700, 700))
+
     def test_collect_dirt_supports_basic_dirt_objects(self):
         canvas = DummyCanvas()
         bot = self.make_bot()
@@ -2236,6 +2250,74 @@ class RegressionTests(unittest.TestCase):
             run_generalization,
             {"brain_type": "subsumption", "seed": 0, "frames": 4, "config_name": "standard"},
         )
+
+    def test_run_headless_qlearning_loads_default_qtable_when_none_provided(self):
+        import json
+
+        import run_headless
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.mod.Bot("Bot0")
+        bot.setBrain(QLearningBrain(bot))
+        bot.setAStar(self.mod.AStar(1000, 1000, 20))
+        world = ([bot], [], self.mod.Counter(), [], 0, [], 0.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            qtable_path = Path(temp_dir) / "trained.json"
+            qtable_path.write_text(
+                json.dumps({
+                    json.dumps([["left", "none", "high", "low", "low", "low"], 3]): 1.25,
+                }),
+                encoding="utf-8",
+            )
+            log_path = Path(temp_dir) / "headless.log"
+            log_path.write_text("", encoding="utf-8")
+
+            with patch.object(run_headless, "DEFAULT_QTABLE_PATH", str(qtable_path)), \
+                 patch.object(run_headless, "initialise_world", return_value=world), \
+                 patch.object(run_headless, "configure_logging", return_value=str(log_path)):
+                result = run_headless.run_simulation(
+                    seed=0,
+                    frames=0,
+                    emit_stdout=False,
+                    brain_type="qlearning",
+                )
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertFalse(bot.brain.training)
+        self.assertEqual(
+            bot.brain.q_table[(("left", "none", "high", "low", "low", "low"), 3)],
+            1.25,
+        )
+
+    def test_run_headless_qlearning_warns_when_qtable_missing(self):
+        import run_headless
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.mod.Bot("Bot0")
+        bot.setBrain(QLearningBrain(bot))
+        bot.setAStar(self.mod.AStar(1000, 1000, 20))
+        world = ([bot], [], self.mod.Counter(), [], 0, [], 0.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "headless.log"
+            log_path.write_text("", encoding="utf-8")
+
+            with patch.object(run_headless, "initialise_world", return_value=world), \
+                 patch.object(run_headless, "configure_logging", return_value=str(log_path)), \
+                 patch.object(run_headless.logger, "warning") as mock_warning:
+                result = run_headless.run_simulation(
+                    seed=0,
+                    frames=0,
+                    emit_stdout=False,
+                    brain_type="qlearning",
+                    qtable_path=str(Path(temp_dir) / "missing.json"),
+                )
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(len(bot.brain.q_table), 0)
+        mock_warning.assert_called_once()
+        self.assertIn("untrained random policy", mock_warning.call_args[0][0])
 
 
 if __name__ == "__main__":

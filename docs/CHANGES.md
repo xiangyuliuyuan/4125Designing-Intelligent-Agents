@@ -96,4 +96,4 @@ ui/                  # Tkinter 组件（window、renderer、controls、control_p
 
 ## 测试状态
 
-当前全部 76 个回归测试通过（`python -m pytest tests/test_regressions.py -q` 与 `python3 -m unittest -q`）。
+当前全部 79 个回归测试通过（`python -m pytest tests/test_regressions.py -q` 与 `python3 -m unittest -q`）。

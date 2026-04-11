@@ -14,7 +14,7 @@ pip install -r requirements.txt
 python main.py
 
 # 无 GUI 模式运行（用于自动化实验）
-# python run_headless.py --seed 42 --frames 3000 --brain-type qlearning
+# python run_headless.py --seed 42 --frames 3000 --brain-type qlearning --qtable experiments/qtables/trained.json
 
 # 运行测试
 # python -m pytest tests/test_regressions.py -q
@@ -73,7 +73,7 @@ experiments/                  # [研究问题1] 实验框架
   results/               # 实验 CSV 数据
   figures/               # 生成的分析图表
 tests/
-  test_regressions.py    # 76 个回归测试
+  test_regressions.py    # 79 个回归测试
 docs/
   CHANGES.md                 # 变更记录总览
   architecture-overview.md   # 模块架构说明
@@ -119,7 +119,7 @@ docs/
 - [**模块化架构**](docs/architecture-overview.md)：从约 1200 行的单体文件重构为 37 个职责明确的模块
 - [**25 项 Bug 修复**](docs/bugfixes.md)：涵盖 A* 寻路、充电系统、运动物理、实体管理
 - [**9 项设计改进 & 5 项新功能**](docs/new-features.md)：结构化日志、运行时日志级别 UI 控件、机器人主动避猫、无头仿真模式、RQ1 替代决策架构与实验框架
-- **76 个回归测试**：覆盖已修复 Bug、新增 UI 交互约束、Q-Learning 训练/分析回归和主入口兼容层
+- **79 个回归测试**：覆盖已修复 Bug、新增 UI 交互约束、Q-Learning 训练/分析回归和主入口兼容层
 - **Headless 模式**：`run_headless.py` 支持无 GUI 自动化实验
 
 > 完整变更记录见 [docs/CHANGES.md](docs/CHANGES.md)
@@ -132,8 +132,8 @@ docs/
 # 基本运行
 python run_headless.py --seed 42 --frames 3000
 
-# 切换智能体架构
-python run_headless.py --seed 123 --frames 5000 --dt 1.0 --brain-type qlearning
+# 切换智能体架构（Q-Learning 需指定训练好的 Q-table）
+python run_headless.py --seed 123 --frames 5000 --dt 1.0 --brain-type qlearning --qtable experiments/qtables/trained.json
 
 # 输出包含碰撞次数、猫惊跳次数、冻结事件次数
 ```
@@ -265,7 +265,7 @@ python experiments/analyze_results.py --comparison experiments/results/compariso
 - [x] 自主智能 Agent（多机器人，subsumption 决策架构）
 - [x] AI 技术实现（A* 寻路 + subsumption 行为分层 + 反应式避猫）
 - [x] 代码模块化重构与 Bug 修复
-- [x] 回归测试（76 个）
+- [x] 回归测试（79 个）
 - [x] Headless 实验模式基础设施
 - [x] 结构化日志系统
 - [x] **研究问题 1**：三种Brain实现（APF + Q-Learning）、训练、实验、图表生成
