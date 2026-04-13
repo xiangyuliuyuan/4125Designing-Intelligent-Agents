@@ -6,7 +6,7 @@
 
 ## 1. Background
 
-Multi-robot systems face a fundamental trade-off: more robots can cover more area, but they also compete for resources (chargers, dirt patches) and must avoid each other. This study systematically measures how total cleaning output and per-robot efficiency change as robot count increases from 1 to 10.
+Multi-robot systems face a fundamental trade-off: more robots can cover more area, but they also compete for resources such as chargers, light-adjacent dirt patches, and free movement space. This study measures how both total cleaning output and per-robot efficiency change as robot count increases from 1 to 10.
 
 ## 2. Experimental Design
 
@@ -25,53 +25,70 @@ Multi-robot systems face a fundamental trade-off: more robots can cover more are
 
 | Bots | Subsumption | Potential Field | Q-Learning |
 |------|-------------|-----------------|------------|
-| 1 | 30.8 | 25.6 | **35.8** |
-| 2 | **56.1** | 55.7 | 53.2 |
-| 3 | 75.3 | 69.1 | **79.8** |
-| 5 | 95.7 | 89.5 | **102.2** |
-| 7 | **120.1** | 99.9 | 117.2 |
-| 10 | 126.6 | 120.5 | **133.6** |
+| 1 | 29.2 | 25.2 | **38.7** |
+| 2 | 51.0 | 52.4 | **67.4** |
+| 3 | 70.8 | 64.4 | **85.3** |
+| 5 | 90.2 | 89.1 | **111.4** |
+| 7 | 116.1 | 98.1 | **131.3** |
+| 10 | 118.7 | 109.5 | **129.4** |
 
-All three architectures show increasing total dirt collected as robots are added, but the gains slow markedly beyond 5-7 robots. Statistical tests confirm that the difference between 7 and 10 robots is not significant for Subsumption (p=0.48) or Q-Learning (p=0.06).
+All three architectures scale upward as robots are added, but the gains are clearly **sub-linear**. Adjacent-count t-tests show significant gains all the way from 1 to 7 robots for every architecture, while **7 to 10 robots is no longer significant** for any of them:
 
-### 3.2 Per-Robot Efficiency (Diminishing Returns)
+- Subsumption: `p = 0.7424`
+- Potential Field: `p = 0.0652`
+- Q-Learning: `p = 0.8103`
+
+This places the main diminishing-returns breakpoint around **7 robots** in the current environment.
+
+### 3.2 Per-Robot Efficiency
 
 ![Per-Robot Efficiency](rq2-figures/line_scaling_per_bot.png)
 
 | Bots | Subsumption | Potential Field | Q-Learning |
 |------|-------------|-----------------|------------|
-| 1 | 30.8 | 25.6 | **35.8** |
-| 2 | 28.1 | **27.9** | 26.6 |
-| 3 | **25.1** | 23.0 | **26.6** |
-| 5 | 19.1 | 17.9 | **20.4** |
-| 7 | **17.2** | 14.3 | 16.7 |
-| 10 | 12.7 | 12.1 | **13.4** |
+| 1 | 29.2 | 25.2 | **38.7** |
+| 2 | 25.5 | 26.2 | **33.7** |
+| 3 | 23.6 | 21.5 | **28.4** |
+| 5 | 18.0 | 17.8 | **22.3** |
+| 7 | 16.6 | 14.0 | **18.8** |
+| 10 | 11.9 | 11.0 | **12.9** |
 
-Per-robot efficiency drops steadily for all architectures. At 10 robots, each robot collects only ~40% of what a single robot achieves alone. This demonstrates clear diminishing returns driven by resource competition and overlap avoidance overhead.
+Per-robot efficiency falls steadily for every controller. At 10 robots, each agent contributes only around one-third of the output of a single-robot run. Q-Learning remains the best architecture on this metric at every robot count, but even it cannot escape the same congestion trend.
 
 ### 3.3 Safety at Scale
 
 ![Safety Metrics](rq2-figures/bar_scaling_safety.png)
 
-- **Cat freezes** increase significantly with more robots, especially for Potential Field (from 1.2 at 1 bot to 7.0 at 7 bots). Subsumption stays safest until 10 robots.
-- **Battery depletions** rise sharply above 5 robots (Subsumption: 0 at 3 bots, 3.8 at 10 bots), indicating charger contention becomes critical at high robot counts.
+Cat freezes and battery depletions both rise with scale, but they do so in different patterns:
+
+- **Subsumption** stays very safe through 7 robots, then jumps to `1.8` freezes and `4.2` battery depletions at 10 robots
+- **Potential Field** accumulates the most cat freezes overall, peaking at `6.3` freezes at 7 robots
+- **Q-Learning** stays comparatively safe through 5 robots and remains below Potential Field on freeze count at every scale
+
+Battery depletion becomes the clearest shared bottleneck once the team size reaches 7-10 robots:
+
+| Bots | Subsumption | Potential Field | Q-Learning |
+|------|-------------|-----------------|------------|
+| 5 | 0.3 | 0.6 | 0.2 |
+| 7 | 1.2 | 1.4 | 1.2 |
+| 10 | 4.2 | 3.9 | 3.8 |
 
 ## 4. Discussion
 
 ### 4.1 Key Findings
 
-1. **Total output scales sub-linearly**: doubling robots from 5 to 10 only increases dirt by ~30-35%, not 100%.
-2. **The practical sweet spot is 3-5 robots** for this environment: gains from 1-5 are statistically significant for all architectures, but beyond 5 the picture diverges. Subsumption still gains significantly from 5-7 (p=0.008), while Potential Field (p=0.11) and Q-Learning (p=0.14) do not. The onset of diminishing returns thus varies by architecture.
-3. **Safety degrades at scale**: all architectures show increased cat freezes and battery depletions beyond 5 robots due to crowding.
-4. **Charger contention is the main bottleneck** at high robot counts, with battery depletions rising dramatically (0 at 3 bots to ~4 at 10 bots).
-5. **Q-Learning scales slightly better** than the hand-designed architectures, maintaining the highest per-robot efficiency across all counts.
+1. **Total output scales sub-linearly** for all three architectures.
+2. **The practical scaling limit is around 7 robots** in this map with 2 chargers; adding robots beyond that yields little extra dirt.
+3. **Q-Learning scales best overall**, keeping the highest total output and per-robot efficiency at every tested count.
+4. **Charger contention becomes the main systems bottleneck** at large team sizes, visible in the sharp rise in battery depletions at 7 and 10 robots.
+5. **Potential Field has the weakest safety profile under scale**, while Subsumption remains the most predictable until the highest crowding level.
 
 ### 4.2 Limitations
 
-- Only one environment size (1000x1000) tested; larger worlds may shift the scaling curve.
-- Charger count fixed at 2; adding more chargers could alleviate the bottleneck.
-- Q-Learning was trained with 3 robots but evaluated at other counts, giving no adaptation advantage.
+- Only one world size (`1000x1000`) is tested; a larger map could delay the onset of diminishing returns.
+- Charger count is fixed at 2; scaling behaviour would likely improve with more charging resources.
+- Q-Learning is trained in the standard 3-robot environment and then transferred to other team sizes without adaptation.
 
 ## 5. Conclusion
 
-The system shows clear diminishing returns as robot count increases, with 3-5 robots providing the best efficiency-to-cost ratio. Beyond 7 robots, safety and resource contention issues outweigh the marginal cleaning gains. Q-Learning shows the most graceful scaling, but all architectures converge to similar per-robot efficiency at high counts.
+The system shows clear diminishing returns as robot count increases. In the current environment, **performance keeps improving up to 7 robots, but the jump from 7 to 10 is no longer statistically meaningful**. **Q-Learning** scales best on both total output and per-robot efficiency, while **Subsumption** remains the safest controller at moderate team sizes. The main practical lesson is that adding robots without adding chargers eventually stops helping.

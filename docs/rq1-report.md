@@ -2,11 +2,12 @@
 
 > **Question**: How do three fundamentally different agent architectures — rule-based (Subsumption), reactive (Artificial Potential Field), and learning-based (Q-Learning) — compare in cleaning task performance, and what are their respective strengths and weaknesses?
 
-This report has been refreshed after fixing the experiment pipeline so that:
+This report has been refreshed after fixing several logic issues in the simulator and experiment pipeline:
 
-- `cat_freeze_count` and `battery_depletions` are counted as transition events rather than per-frame occupancy
-- Q-Learning applies its final episode reward before resetting
-- analysis scripts parse the current Q-table JSON format and 7-action policy space
+- cat-safety behaviours now take priority over low-battery charging in the Subsumption and Coverage controllers
+- A* charging paths now respect the simulator's toroidal world geometry
+- cat-freeze and battery-depletion metrics are counted as transition events, including physical safety freezes
+- the canonical Q-Learning policy has been retrained on the current codebase before evaluation
 
 ---
 
@@ -29,12 +30,14 @@ The subsumption agent uses a 7-layer priority stack:
 | Priority | Behaviour | Trigger |
 |----------|-----------|---------|
 | 1 (highest) | Overlap separation | Bot signal > 20,000 |
-| 2 | Low-battery charging (A* navigation) | Battery < 600 |
-| 3 | Cat freeze | Cat signal > 3,000 |
-| 4 | Cat avoidance | Cat signal > 700 |
+| 2 | Cat freeze | Cat signal > 3,000 |
+| 3 | Cat avoidance | Cat signal > 700 |
+| 4 | Low-battery charging (A* navigation) | Battery < 600 |
 | 5 | Debris avoidance | Debris signal > 5,000 |
 | 6 | Bot avoidance | Bot signal > 3,000 |
 | 7 (lowest) | Random wandering | Default |
+
+This ordering now matches the actual implementation: **cat safety overrides charging**.
 
 ### 2.2 Artificial Potential Field (`robot/brain_potential_field.py`)
 
@@ -103,18 +106,19 @@ Hard cat-freeze and overlap overrides remain in place, so the learned policy onl
 
 | Algorithm | Mean Dirt | Std | Collection Rate | Cat Freezes | Battery Depletions |
 |-----------|-----------|-----|-----------------|-------------|--------------------|
-| Subsumption | 75.3 | ±14.4 | 0.050 | 0.0 | 0.0 |
-| Potential Field | 69.1 | ±9.6 | 0.046 | 1.8 | 0.0 |
-| **Q-Learning** | **79.8** | ±18.6 | **0.053** | 0.5 | 0.1 |
+| Subsumption | 70.8 | ±14.4 | 0.047 | 0.0 | 0.0 |
+| Potential Field | 64.4 | ±10.1 | 0.043 | 1.0 | 0.2 |
+| **Q-Learning** | **85.3** | ±13.9 | **0.057** | 0.4 | 0.1 |
 
 **Significance**:
 
-- Dirt collected: no pairwise comparison is significant at `alpha = 0.05`
-- Cat freezes: Subsumption vs Potential Field is significant (`p = 0.012`)
+- Q-Learning beats Subsumption on dirt collected (`p = 0.0342`)
+- Q-Learning beats Potential Field on dirt collected (`p = 0.0012`)
+- Subsumption has significantly fewer cat freezes than Potential Field (`p = 0.0011`) and Q-Learning (`p = 0.0248`)
 
 ![Collection Rate Distribution](rq1-figures/box_collection_rate.png)
 
-The refreshed comparison changes the earlier story: Q-Learning still has the highest average cleaning score, but the margin is small and noisy rather than overwhelming.
+The refreshed comparison now supports a stronger result than the stale report: **Q-Learning is the clear best performer in the standard environment**, not just a noisy near-tie.
 
 ### 4.2 Cat Count Gradient
 
@@ -124,17 +128,17 @@ Mean dirt collected by cat count:
 
 | Cat Count | Subsumption | Potential Field | Q-Learning |
 |-----------|-------------|-----------------|------------|
-| 0 | 89.3 | 73.4 | **89.6** |
-| 2 | 83.8 | 67.4 | **89.4** |
-| 4 | 75.3 | 69.1 | **79.8** |
-| 6 | 68.8 | 62.1 | **76.3** |
-| 8 | 56.3 | 67.4 | **68.7** |
+| 0 | 90.2 | 73.9 | **90.4** |
+| 2 | 86.5 | 69.2 | **91.5** |
+| 4 | 70.8 | 64.4 | **85.3** |
+| 6 | 66.1 | 56.7 | **77.3** |
+| 8 | 56.6 | 58.1 | **68.9** |
 
 Key observations:
 
-- **Subsumption** declines steadily as cats increase (`89.3 -> 56.3`)
-- **Potential Field** remains inconsistent and never becomes the strongest option
-- **Q-Learning** stays best across the full gradient and degrades more slowly than Subsumption
+- **Q-Learning remains the strongest controller across the full cat gradient**
+- **Subsumption** degrades steadily as obstacle pressure increases
+- **Potential Field** remains the weakest option in most settings, although at 8 cats it slightly exceeds Subsumption
 
 ### 4.3 Training Duration
 
@@ -142,38 +146,38 @@ Key observations:
 
 | Training Episodes | Mean Dirt |
 |-------------------|-----------|
-| 25 | 86.6 |
-| 50 | 76.7 |
-| **100** | **88.6** |
-| 150 | 77.8 |
-| 200 | 79.8 |
+| 25 | 68.7 |
+| 50 | 75.0 |
+| 100 | 82.8 |
+| 150 | 66.1 |
+| **200** | **85.3** |
 
-The curve is clearly **non-monotonic**. More training is not automatically better in the current setup. The best mean score appears at `100` episodes, while `25` episodes is already competitive. This suggests that the current reward design and data distribution produce a noisy learning process rather than smooth convergence.
+The curve remains **non-monotonic**, but the best current result is now the full `200`-episode run. Longer training can still fail to help when the learning process drifts into weaker policies, yet the refreshed canonical model shows that the best observed policy in this setup comes from the longest run tested.
 
 ### 4.4 Generalization
 
 | Environment | Subsumption | Potential Field | Q-Learning |
 |-------------|-------------|-----------------|------------|
-| Standard (3 bots, 4 cats) | 75.3 | 69.1 | **79.8** |
-| Single bot (1 bot, 4 cats) | 30.8 | 25.6 | **35.8** |
-| Many bots (5 bots, 4 cats) | 95.7 | 89.5 | **102.2** |
-| Hard mode (1 bot, 8 cats) | 23.6 | 23.5 | **27.5** |
+| Standard (3 bots, 4 cats) | 70.8 | 64.4 | **85.3** |
+| Single bot (1 bot, 4 cats) | 29.2 | 25.2 | **38.7** |
+| Many bots (5 bots, 4 cats) | 90.2 | 89.1 | **111.4** |
+| Hard mode (1 bot, 8 cats) | 21.7 | 21.9 | **28.4** |
 
-Q-Learning achieves the highest mean score in every environment, but the advantage is moderate rather than dramatic. The strongest relative gap appears in the single-bot case.
+Q-Learning achieves the highest mean score in every evaluation environment. The margin is largest in the standard, single-bot, and many-bot settings, and remains meaningful even in the hardest configuration.
 
 ### 4.5 Safety Analysis
 
 ![Cat Encounter Safety](rq1-figures/bar_cat_freezes.png)
 
 - **Subsumption** remains the safest policy: zero cat freezes and zero battery depletions in the standard comparison
-- **Potential Field** shows the weakest safety profile: mean `1.8` cat freezes
-- **Q-Learning** is mostly safe but not perfect: mean `0.5` cat freezes and `0.1` battery depletions
+- **Potential Field** shows the weakest safety profile: mean `1.0` cat freezes
+- **Q-Learning** is still relatively safe, but not perfect: mean `0.4` cat freezes and `0.1` battery depletions
 
 ### 4.6 Training Curve
 
 ![Q-Learning Training Curve](rq1-figures/training_curve_reward.png)
 
-The reward curve trends upward overall, but with large episode-to-episode variance. This matches the non-monotonic training-duration study: learning is happening, but the policy quality is sensitive to training length and stochastic rollout variance.
+The reward curve trends upward overall but remains noisy. This matches the training-duration study: learning is real, but policy quality is still sensitive to stochastic rollout variance.
 
 ### 4.7 Multi-Metric Overview
 
@@ -183,24 +187,24 @@ The reward curve trends upward overall, but with large episode-to-episode varian
 
 ### 5.1 Answering the Research Question
 
-The repaired experiments support a more conservative answer than the original draft:
+With the repaired controller logic, retrained Q-table, and refreshed analysis pipeline, the answer is now clearer:
 
-- **Subsumption** is still the strongest choice when safety and predictability matter most. Its cleaning score is close to Q-Learning in the standard setup while keeping perfect safety metrics.
-- **Potential Field** is not a compelling middle ground under the current tuning. It underperforms Subsumption on both mean dirt and safety.
-- **Q-Learning** delivers the best overall cleaning and the best transfer to unseen environments, but the gain is modest and comes with some residual safety and training-stability issues.
+- **Q-Learning is the best overall architecture** in this simulator when the main objective is dirt collection.
+- **Subsumption** remains the strongest safety baseline and the easiest controller to reason about.
+- **Potential Field** is consistently outperformed by Q-Learning and usually by Subsumption as well.
 
 ### 5.2 Key Findings
 
-1. **Q-Learning still leads overall**, but the advantage is smaller than the stale report claimed.
-2. **Subsumption remains the safety baseline** with zero freeze and zero depletion events in the standard comparison.
-3. **APF is the weakest of the three under current weights**, showing both lower efficiency and higher freeze counts.
-4. **Training stability is now the main Q-Learning weakness**: longer training does not reliably improve performance.
+1. **Q-Learning now wins the standard comparison by a statistically significant margin** over both hand-designed baselines.
+2. **Subsumption remains the safety baseline**, with zero freezes and zero depletions in the standard setup.
+3. **APF is still the weakest of the three under current weights**, combining lower cleaning output with more freeze events.
+4. **Q-Learning training is still unstable**, because intermediate training durations do not improve monotonically.
 
 ### 5.3 Limitations
 
 - The tabular state representation is still coarse and may hide important geometry and temporal context.
-- Q-Learning performance is sensitive to stochastic training variance.
-- Only one reward design is evaluated here; stronger battery penalties or curriculum training could change the ranking.
+- Q-Learning performance remains sensitive to stochastic training variance.
+- Only one reward design is evaluated here; stronger safety penalties or curriculum training could change the ranking.
 - The simulator remains a simplified 2D toroidal world rather than a full physical robot environment.
 
 ### 5.4 Future Work
@@ -212,4 +216,4 @@ The repaired experiments support a more conservative answer than the original dr
 
 ## 6. Conclusion
 
-After repairing the experiment pipeline and regenerating all results, **Q-Learning remains the best-performing architecture overall**, especially in generalization, but it no longer dominates by a wide or statistically significant margin in the standard comparison. **Subsumption** remains the most reliable and safest controller. **Potential Field** is the least convincing option in the current implementation. The most important follow-up is no longer “prove Q-Learning wins”, but rather “make learned performance more stable without losing the safety guarantees of rule-based control.”
+After repairing the simulator logic and regenerating all RQ1 experiment outputs, **Q-Learning is the best-performing architecture overall** and now has statistically supported gains in the standard comparison. **Subsumption** remains the safest and most predictable controller. **Potential Field** is the least convincing option in the current implementation. The main follow-up question is no longer whether learning can beat hand-written rules here, but how to retain Q-Learning's performance advantage while tightening its safety guarantees and reducing training variance.

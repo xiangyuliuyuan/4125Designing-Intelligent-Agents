@@ -182,18 +182,7 @@ class CoverageMapBrain:
                 speedRight = 5.0
             return speedLeft, speedRight, newX, newY
 
-        # --- Priority 3: Low battery ---
-        if battery < self.bot.battery_low_threshold:
-            if self.isAvoiding:
-                self.isAvoiding = False
-                self.avoidCount = 0
-            if self.isAvoidingDebris:
-                self.isAvoidingDebris = False
-            speedLeft = 3.0
-            speedRight = 3.0
-            return speedLeft, speedRight, newX, newY
-
-        # --- Priority 4: Cat freeze ---
+        # --- Priority 3: Cat freeze ---
         if self.force_cat_freeze or cat_sum > self.cat_freeze_threshold:
             self.is_cat_frozen = True
             if self.isAvoiding:
@@ -205,7 +194,7 @@ class CoverageMapBrain:
             self.cat_avoid_hold_remaining = 0
             return 0.0, 0.0, newX, newY
 
-        # --- Priority 5: Cat avoidance ---
+        # --- Priority 4: Cat avoidance ---
         if cat_sum > self.cat_avoid_threshold:
             self.isAvoidingCat = True
             self.cat_avoid_hold_remaining = self.cat_avoid_hold_frames
@@ -230,6 +219,17 @@ class CoverageMapBrain:
             else:
                 self.cat_avoid_direction = -1
                 speedLeft, speedRight = -3.0, 3.0
+            return speedLeft, speedRight, newX, newY
+
+        # --- Priority 5: Low battery ---
+        if battery < self.bot.battery_low_threshold:
+            if self.isAvoiding:
+                self.isAvoiding = False
+                self.avoidCount = 0
+            if self.isAvoidingDebris:
+                self.isAvoidingDebris = False
+            speedLeft = 3.0
+            speedRight = 3.0
             return speedLeft, speedRight, newX, newY
 
         elif self.cat_avoid_hold_remaining > 0:

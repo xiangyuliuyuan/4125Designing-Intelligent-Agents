@@ -2319,6 +2319,67 @@ class RegressionTests(unittest.TestCase):
         mock_warning.assert_called_once()
         self.assertIn("untrained random policy", mock_warning.call_args[0][0])
 
+    def test_low_battery_subsumption_still_freezes_for_close_cat(self):
+        bot = self.make_bot("Bot0")
+
+        sl, sr, _new_x, _new_y = bot.brain.thinkAndAct(
+            0, 0, 0, 0, 0, 0, 0, 0,
+            500,
+            0, 0, 0, 0,
+            4000, 0,
+        )
+
+        self.assertEqual((sl, sr), (0.0, 0.0))
+        self.assertTrue(bot.brain.is_cat_frozen)
+
+    def test_low_battery_coverage_still_freezes_for_close_cat(self):
+        from robot.brain_coverage import CoverageMapBrain
+
+        bot = self.mod.Bot("Bot0")
+        bot.setBrain(CoverageMapBrain(bot))
+        bot.setAStar(self.mod.AStar(1000, 1000, 20))
+
+        sl, sr, _new_x, _new_y = bot.brain.thinkAndAct(
+            0, 0, 0, 0, 0, 0, 0, 0,
+            500,
+            0, 0, 0, 0,
+            4000, 0,
+        )
+
+        self.assertEqual((sl, sr), (0.0, 0.0))
+        self.assertTrue(bot.brain.is_cat_frozen)
+
+    def test_count_transitions_counts_physical_cat_freeze_flag(self):
+        from experiments.utils import count_transitions
+
+        class StubAgent:
+            def __init__(self):
+                self.name = "Bot0"
+                self.brain = types.SimpleNamespace(
+                    is_cat_frozen=False,
+                    force_cat_freeze=True,
+                )
+                self.battery = 100
+
+        cat_freezes, battery_depletions, frozen_agents, depleted_agents = count_transitions(
+            [StubAgent()],
+            set(),
+            set(),
+        )
+
+        self.assertEqual(cat_freezes, 1)
+        self.assertEqual(battery_depletions, 0)
+        self.assertEqual(frozen_agents, {"Bot0"})
+        self.assertEqual(depleted_agents, set())
+
+    def test_astar_prefers_wrapped_short_path_across_world_edge(self):
+        astar = self.mod.AStar(1000, 1000, 20)
+
+        path = astar.find_path(5, 500, 995, 500, [])
+
+        self.assertIsNotNone(path)
+        self.assertLess(len(path), 6)
+
 
 if __name__ == "__main__":
     unittest.main()

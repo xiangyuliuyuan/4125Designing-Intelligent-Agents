@@ -71,10 +71,15 @@ class AStar:
         (1, 1, _SQRT2), (1, -1, _SQRT2), (-1, 1, _SQRT2), (-1, -1, _SQRT2),
     ]
 
+    def _wrap_grid(self, grid_x, grid_y):
+        return grid_x % self.cols, grid_y % self.rows
+
     def heuristic(self, a, b):
-        """启发函数：切比雪夫距离（适配8方向移动）"""
+        """启发函数：环绕世界下的切比雪夫距离（适配8方向移动）"""
         dx = abs(a[0] - b[0])
         dy = abs(a[1] - b[1])
+        dx = min(dx, self.cols - dx)
+        dy = min(dy, self.rows - dy)
         return max(dx, dy) + (self._SQRT2 - 1) * min(dx, dy)
 
     def _clear_obstacle_cells(self, obstacle_map, cells):
@@ -133,10 +138,7 @@ class AStar:
                     break
 
             for dx, dy, cost in self._NEIGHBORS:
-                neighbor = (current[0] + dx, current[1] + dy)
-
-                if not (0 <= neighbor[0] < self.cols and 0 <= neighbor[1] < self.rows):
-                    continue
+                neighbor = self._wrap_grid(current[0] + dx, current[1] + dy)
 
                 if neighbor in closed_set:
                     continue
@@ -145,7 +147,9 @@ class AStar:
                     continue
 
                 if dx != 0 and dy != 0:
-                    if obstacle_map[current[0] + dx][current[1]] or obstacle_map[current[0]][current[1] + dy]:
+                    orthogonal_x = self._wrap_grid(current[0] + dx, current[1])
+                    orthogonal_y = self._wrap_grid(current[0], current[1] + dy)
+                    if obstacle_map[orthogonal_x[0]][orthogonal_x[1]] or obstacle_map[orthogonal_y[0]][orthogonal_y[1]]:
                         continue
 
                 tentative_g = g_score[current] + cost
@@ -207,11 +211,7 @@ class AStar:
 
             # 检查8个方向
             for dx, dy, cost in self._NEIGHBORS:
-                neighbor = (current[0] + dx, current[1] + dy)
-
-                # 检查边界
-                if not (0 <= neighbor[0] < self.cols and 0 <= neighbor[1] < self.rows):
-                    continue
+                neighbor = self._wrap_grid(current[0] + dx, current[1] + dy)
 
                 if neighbor in closed_set:
                     continue
@@ -222,7 +222,9 @@ class AStar:
 
                 # 对角线移动时，检查两个正交邻居是否被阻挡（防止穿墙）
                 if dx != 0 and dy != 0:
-                    if obstacle_map[current[0] + dx][current[1]] or obstacle_map[current[0]][current[1] + dy]:
+                    orthogonal_x = self._wrap_grid(current[0] + dx, current[1])
+                    orthogonal_y = self._wrap_grid(current[0], current[1] + dy)
+                    if obstacle_map[orthogonal_x[0]][orthogonal_x[1]] or obstacle_map[orthogonal_y[0]][orthogonal_y[1]]:
                         continue
 
                 tentative_g = g_score[current] + cost

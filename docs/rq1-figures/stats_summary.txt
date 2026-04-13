@@ -1,0 +1,47 @@
+======================================================================
+EXPERIMENT RESULTS - DESCRIPTIVE STATISTICS
+======================================================================
+
+--- dirt_collected ---
+  Subsumption           mean=  70.800  std=  14.428  min=  48.000  max=  90.000  n=10
+  Potential Field       mean=  64.400  std=  10.091  min=  51.000  max=  78.000  n=10
+  Q-Learning            mean=  85.300  std=  13.865  min=  71.000  max= 116.000  n=10
+
+--- collection_rate ---
+  Subsumption           mean=   0.047  std=   0.010  min=   0.032  max=   0.060  n=10
+  Potential Field       mean=   0.043  std=   0.007  min=   0.034  max=   0.052  n=10
+  Q-Learning            mean=   0.057  std=   0.009  min=   0.047  max=   0.077  n=10
+
+--- cat_freeze_count ---
+  Subsumption           mean=   0.000  std=   0.000  min=   0.000  max=   0.000  n=10
+  Potential Field       mean=   1.000  std=   0.816  min=   0.000  max=   2.000  n=10
+  Q-Learning            mean=   0.400  std=   0.516  min=   0.000  max=   1.000  n=10
+
+--- battery_depletions ---
+  Subsumption           mean=   0.000  std=   0.000  min=   0.000  max=   0.000  n=10
+  Potential Field       mean=   0.200  std=   0.422  min=   0.000  max=   1.000  n=10
+  Q-Learning            mean=   0.100  std=   0.316  min=   0.000  max=   1.000  n=10
+
+======================================================================
+PAIRWISE T-TESTS (independent, two-sided)
+======================================================================
+
+--- dirt_collected ---
+  Subsumption vs Potential Field: t=+1.1495  p=0.2654 
+  Subsumption vs Q-Learning: t=-2.2915  p=0.0342 *
+  Potential Field vs Q-Learning: t=-3.8542  p=0.0012 *
+
+--- collection_rate ---
+  Subsumption vs Potential Field: t=+1.1495  p=0.2654 
+  Subsumption vs Q-Learning: t=-2.2915  p=0.0342 *
+  Potential Field vs Q-Learning: t=-3.8541  p=0.0012 *
+
+--- cat_freeze_count ---
+  Subsumption vs Potential Field: t=-3.8730  p=0.0011 *
+  Subsumption vs Q-Learning: t=-2.4495  p=0.0248 *
+  Potential Field vs Q-Learning: t=+1.9640  p=0.0652 
+
+--- battery_depletions ---
+  Subsumption vs Potential Field: t=-1.5000  p=0.1510 
+  Subsumption vs Q-Learning: t=-1.0000  p=0.3306 
+  Potential Field vs Q-Learning: t=+0.6000  p=0.5560 

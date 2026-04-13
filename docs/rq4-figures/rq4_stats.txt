@@ -3,34 +3,34 @@ RQ4: REWARD FUNCTION COMPARISON - STATISTICS
 ======================================================================
 
 --- dirt_collected ---
-  subsumption_baseline: mean=75.30  std=14.39  n=10
-  baseline            : mean=79.80  std=18.65  n=10
-  heavy_safety        : mean=78.30  std=16.25  n=10
-  dense_progress      : mean=80.00  std=15.50  n=10
-  energy_aware        : mean=52.80  std=9.45  n=10
-  sparse              : mean=79.20  std=12.17  n=10
+  subsumption_baseline: mean=70.80  std=14.43  n=10
+  baseline            : mean=85.30  std=13.86  n=10
+  heavy_safety        : mean=84.50  std=15.50  n=10
+  dense_progress      : mean=78.30  std=12.82  n=10
+  energy_aware        : mean=42.60  std=11.84  n=10
+  sparse              : mean=81.10  std=13.77  n=10
 
 --- cat_freeze_count ---
   subsumption_baseline: mean=0.00  std=0.00  n=10
-  baseline            : mean=0.50  std=0.85  n=10
-  heavy_safety        : mean=0.30  std=0.48  n=10
-  dense_progress      : mean=0.40  std=0.52  n=10
-  energy_aware        : mean=0.30  std=0.48  n=10
-  sparse              : mean=0.50  std=0.85  n=10
+  baseline            : mean=0.40  std=0.52  n=10
+  heavy_safety        : mean=0.50  std=0.71  n=10
+  dense_progress      : mean=0.30  std=0.48  n=10
+  energy_aware        : mean=0.30  std=0.95  n=10
+  sparse              : mean=0.20  std=0.42  n=10
 
 --- battery_depletions ---
   subsumption_baseline: mean=0.00  std=0.00  n=10
   baseline            : mean=0.10  std=0.32  n=10
-  heavy_safety        : mean=0.30  std=0.48  n=10
-  dense_progress      : mean=0.00  std=0.00  n=10
-  energy_aware        : mean=0.10  std=0.32  n=10
-  sparse              : mean=0.10  std=0.32  n=10
+  heavy_safety        : mean=0.00  std=0.00  n=10
+  dense_progress      : mean=0.10  std=0.32  n=10
+  energy_aware        : mean=0.00  std=0.00  n=10
+  sparse              : mean=0.00  std=0.00  n=10
 
 ======================================================================
 T-TESTS: baseline vs each variant (dirt_collected)
 ======================================================================
-  baseline vs subsumption_baseline: t=+0.604 p=0.5533 
-  baseline vs heavy_safety: t=+0.192 p=0.8501 
-  baseline vs dense_progress: t=-0.026 p=0.9795 
-  baseline vs energy_aware: t=+4.084 p=0.0007 *
-  baseline vs sparse: t=+0.085 p=0.9330 
+  baseline vs subsumption_baseline: t=+2.291 p=0.0342 *
+  baseline vs heavy_safety: t=+0.122 p=0.9045 
+  baseline vs dense_progress: t=+1.172 p=0.2564 
+  baseline vs energy_aware: t=+7.405 p=0.0000 *
+  baseline vs sparse: t=+0.680 p=0.5054 

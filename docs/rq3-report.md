@@ -6,7 +6,7 @@
 
 ## 1. Background
 
-Real-world sensors produce noisy readings due to calibration drift, environmental interference, and measurement uncertainty. This study injects multiplicative Gaussian noise into all sensor channels to measure how each agent architecture performs under imperfect perception. The noise model applies `signal *= max(0, 1 + N(0, sigma))` to every sensor reading, affecting light, debris, bot, cat, and charger detection equally.
+Real-world sensors produce noisy readings due to calibration drift, environmental interference, and measurement uncertainty. This study injects multiplicative Gaussian noise into all sensor channels to measure how each architecture performs under imperfect perception. The noise model applies `signal *= max(0, 1 + N(0, sigma))` to every sensor reading, affecting light, debris, bot, cat, and charger detection equally.
 
 ## 2. Experimental Design
 
@@ -16,7 +16,7 @@ Real-world sensors produce noisy readings due to calibration drift, environmenta
 - **Repetitions**: 10 random seeds per condition
 - **Total runs**: 6 x 3 x 10 = 180
 
-The noise is applied at the lowest level — inside `calculate_sensor_values()` — so all sensors are affected consistently.
+The noise is applied inside `calculate_sensor_values()`, so all sensing channels are perturbed consistently.
 
 ## 3. Results
 
@@ -26,62 +26,68 @@ The noise is applied at the lowest level — inside `calculate_sensor_values()` 
 
 | Sigma | Subsumption | Potential Field | Q-Learning |
 |-------|-------------|-----------------|------------|
-| 0.0 | 75.3 | 69.1 | **79.8** |
-| 0.1 | **81.8** | 67.8 | 81.5 |
-| 0.2 | 68.8 | 65.5 | **84.5** |
-| 0.3 | 72.3 | 65.8 | **79.7** |
-| 0.5 | 67.1 | 65.0 | **79.0** |
-| 1.0 | 69.1 | 66.0 | **70.1** |
+| 0.0 | 70.8 | 64.4 | **85.3** |
+| 0.1 | 69.5 | 67.2 | **86.3** |
+| 0.2 | 68.6 | 59.2 | **84.2** |
+| 0.3 | 71.7 | 63.1 | **83.2** |
+| 0.5 | 68.1 | 62.1 | **83.6** |
+| 1.0 | 65.0 | 66.3 | **77.7** |
 
-All three architectures show **surprising resilience** in cleaning performance. None of the dirt-collected changes are statistically significant at any noise level (all p > 0.2). Some conditions even show slight increases (e.g., Q-Learning at sigma=0.2 scores 84.5 vs baseline 79.8), but these are within random variance and not meaningful improvements. Q-Learning maintains the highest scores up to sigma=0.5, only dropping meaningfully at sigma=1.0.
+None of the dirt-collected changes relative to `sigma = 0.0` are statistically significant for any architecture (`all p > 0.28`). The main result is therefore not “noise ruins cleaning”, but rather that **cleaning output is surprisingly robust even under very heavy multiplicative noise**.
 
 ### 3.2 Performance Retention
 
 ![Relative Performance](rq3-figures/bar_noise_relative.png)
 
-At sigma=1.0, performance retention is:
-- **Subsumption**: 91.8% of baseline
-- **Potential Field**: 95.5% of baseline
-- **Q-Learning**: 87.8% of baseline
+At `sigma = 1.0`, performance retention relative to the noise-free baseline is:
 
-Potential Field shows the most stable cleaning output, likely because its gradient-based force computation naturally smooths noisy inputs through the turn-smoothing filter.
+- **Subsumption**: 91.8%
+- **Potential Field**: 102.9%
+- **Q-Learning**: 91.1%
+
+Potential Field appears most stable on this narrow metric, but that is misleading on its own because its safety behaviour degrades much more sharply.
 
 ### 3.3 Safety Under Noise
 
 ![Safety Under Noise](rq3-figures/line_noise_safety.png)
 
-The **critical finding** is in safety, not cleaning:
+The dominant effect of noise is on **cat-freeze frequency**, not on dirt collection:
 
 | Sigma | Subsumption Freezes | APF Freezes | Q-Learning Freezes |
-|-------|--------------------|--------------|--------------------|
-| 0.0 | 0.0 | 1.8 | 0.5 |
-| 0.1 | 0.2 | 3.1 | 0.6 |
-| 0.2 | 0.4 | **7.6** (p=0.001) | 0.8 |
-| 0.3 | 0.2 | 3.4 | **1.7** (p=0.008) |
-| 0.5 | 1.3 | **15.2** (p<0.001) | **3.3** (p=0.002) |
-| 1.0 | **6.4** (p<0.001) | **36.6** (p<0.001) | **9.8** (p<0.001) |
+|-------|--------------------|-------------|--------------------|
+| 0.0 | 0.0 | 1.0 | 0.4 |
+| 0.1 | 0.4 | 3.0 | 0.7 |
+| 0.2 | 0.9 | 5.9 | 0.6 |
+| 0.3 | 1.4 | 4.3 | 1.4 |
+| 0.5 | 2.9 | 15.0 | 2.2 |
+| 1.0 | 13.3 | 34.5 | 10.8 |
 
-Statistical significance tests (vs sigma=0 baseline) confirm:
+Significance tests against the noise-free baseline show:
 
-- **Potential Field** is by far the most noise-sensitive for safety: cat freezes become significantly elevated from sigma=0.2 onward (p=0.001), reaching 36.6 at sigma=1.0. Noisy cat signals cause the soft avoidance forces to miscalculate, leading to close cat encounters. The non-monotonic dip at sigma=0.3 (3.4, not significant) is likely sampling variance with n=10.
-- **Q-Learning** shows significant safety degradation from sigma=0.3 onward (p=0.008), reaching 9.8 freezes at sigma=1.0.
-- **Subsumption** stays safest up to sigma=0.5 (all p>0.15), only becoming significant at sigma=1.0 (p<0.001, 6.4 freezes). Its hard thresholds provide a partial shield against moderate noise.
+- **Subsumption** becomes significantly worse from `sigma = 0.2` onward
+- **Potential Field** also becomes significantly worse from `sigma = 0.2` onward
+- **Q-Learning** does not show a significant freeze increase until `sigma = 0.3`
+
+At moderate noise levels (`0.2` to `0.5`), **Q-Learning is the most robust safety-wise**, while Potential Field is consistently the worst. At extreme noise (`sigma = 1.0`), every controller degrades sharply, but APF fails by far the hardest.
+
+Battery depletion stays near zero across the entire study, so the robustness question is primarily about **collision avoidance quality**, not energy management.
 
 ## 4. Discussion
 
 ### 4.1 Key Findings
 
-1. **Cleaning performance is surprisingly robust to noise** across all architectures — even sigma=1.0 (where sensor readings can double or zero out) only causes a ~10% drop.
-2. **Safety is the true vulnerability**: noise primarily affects cat avoidance, not dirt collection. This makes sense — cats require precise distance estimation while dirt collection is more forgiving.
-3. **Potential Field is the worst under noise** for safety, because its continuous force computation amplifies noise directly into steering. Threshold-based systems (Subsumption) at least have a clear "react or don't" boundary.
-4. **Q-Learning shows moderate robustness** despite being trained without noise, suggesting the discretized state representation acts as a natural noise filter (continuous sensor values map to categorical buckets).
+1. **Cleaning performance is robust to sensor noise** across all architectures in this simulator.
+2. **Safety is the true vulnerability**: noisy cat perception causes freeze events to rise long before dirt collection collapses.
+3. **Potential Field is the least noise-robust architecture overall**, because its continuous steering reacts directly to noisy gradients.
+4. **Q-Learning is the strongest all-round option under noise**, keeping the highest cleaning score at every sigma and delaying significant safety degradation until `sigma = 0.3`.
+5. **Subsumption remains competitive but not noise-immune**; once its thresholds are crossed incorrectly often enough, freeze events also rise substantially.
 
 ### 4.2 Limitations
 
-- Only multiplicative noise tested; systematic bias or sensor dropout would behave differently.
-- Q-Learning was trained without noise; retraining with noise could improve its robustness.
-- The physical cat-freeze override (distance < 90px) is independent of sensors and provides a safety floor that limits how bad any architecture can perform.
+- Only multiplicative Gaussian noise is tested; systematic bias or sensor dropout could produce different failure modes.
+- Q-Learning is evaluated without noise-aware retraining; robustness could improve further with noisy training data.
+- The simulator's hard physical freeze override still provides a safety floor, limiting worst-case behavioural divergence.
 
 ## 5. Conclusion
 
-Sensor noise affects **safety far more than cleaning efficiency**. Potential Field is the most noise-sensitive architecture due to its continuous force computation. Subsumption's hard thresholds provide a partial shield, and Q-Learning's state discretization acts as an implicit noise filter. For deployment in noisy environments, a hybrid approach using threshold-based safety with learned movement would be advisable.
+Sensor noise affects **safety much more than cleaning throughput** in this project. **Q-Learning** remains the best-performing controller across the full noise range and is also the most robust under moderate noise. **Potential Field** is the most noise-sensitive architecture, especially in safety-critical cat encounters. **Subsumption** offers a predictable baseline, but its threshold logic still degrades once noise becomes strong enough to flip decisions frequently.

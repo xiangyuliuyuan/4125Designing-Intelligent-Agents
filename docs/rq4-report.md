@@ -6,7 +6,7 @@
 
 ## 1. Background
 
-RQ1 revealed that Q-Learning's training curve is non-monotonic: more training episodes do not reliably improve performance. This study investigates whether the reward function design is responsible, by training the same Q-Learning agent with five different reward signals and comparing both the training dynamics and the resulting policy quality.
+RQ1 showed that Q-Learning performance depends heavily on training quality. This study tests whether the reward design is a major cause by training the same tabular Q-Learning agent with five reward variants and comparing both the learned policy quality and the training dynamics.
 
 ## 2. Reward Variants
 
@@ -14,18 +14,18 @@ RQ1 revealed that Q-Learning's training curve is non-monotonic: more training ep
 |---------|-------------------|
 | **Baseline** | +10 per dirt, -0.1 per frame, -20 per battery depletion |
 | **Heavy Safety** | Baseline + (-5.0 per frame near cat, -20 per freeze) |
-| **Dense Progress** | Baseline + (+2.0) when approaching light sources (dirt) |
+| **Dense Progress** | Baseline + (+2.0) when approaching light sources |
 | **Energy Aware** | Baseline + (+5.0 when actively charging, -3.0 per frame when battery < 300) |
-| **Sparse** | +10 per dirt only (no frame penalty, no battery penalty) |
+| **Sparse** | +10 per dirt only |
 
-Each variant was trained with a different random seed to ensure independent training trajectories.
+Each variant was trained independently for 200 episodes before evaluation.
 
 ## 3. Experimental Design
 
-- **Training**: 200 episodes x 1500 frames, 3 bots, 4 cats, 2 chargers, different base seed per variant
+- **Training**: 200 episodes x 1500 frames, 3 bots, 4 cats, 2 chargers
 - **Evaluation**: each trained Q-table tested on 10 random seeds (1500 frames)
-- **Baseline comparison**: Subsumption architecture evaluated on same seeds
-- **Metrics**: dirt collected, cat freezes, battery depletions, training curve shape
+- **Reference baseline**: Subsumption evaluated on the same seeds
+- **Metrics**: dirt collected, cat freezes, battery depletions, training-curve shape
 
 ## 4. Results
 
@@ -35,63 +35,75 @@ Each variant was trained with a different random seed to ensure independent trai
 
 | Variant | Mean Dirt | Std | Cat Freezes | Battery Depletions |
 |---------|-----------|-----|-------------|-------------------|
-| Subsumption (ref) | 75.3 | 14.4 | 0.0 | 0.0 |
-| Baseline | **79.8** | 18.7 | 0.5 | 0.1 |
-| Heavy Safety | 78.3 | 16.3 | 0.3 | 0.3 |
-| Dense Progress | **80.0** | 15.5 | 0.4 | 0.0 |
-| Energy Aware | 52.8 | 9.5 | 0.3 | 0.1 |
-| Sparse | 79.2 | 12.2 | 0.5 | 0.1 |
+| Subsumption (ref) | 70.8 | 14.4 | 0.0 | 0.0 |
+| **Baseline** | **85.3** | 13.9 | 0.4 | 0.1 |
+| Heavy Safety | 84.5 | 15.5 | 0.5 | 0.0 |
+| Dense Progress | 78.3 | 12.8 | 0.3 | 0.1 |
+| Energy Aware | 42.6 | 11.8 | 0.3 | 0.0 |
+| Sparse | 81.1 | 13.8 | 0.2 | 0.0 |
 
-**Key result**: Energy Aware is **significantly worse** than Baseline (p=0.0007), while all other Q-Learning variants are statistically indistinguishable from Baseline (p > 0.85). The continuous low-battery penalty causes the agent to learn an overly cautious policy that prioritizes charging over cleaning.
+The main statistical result is unchanged in direction but stronger in magnitude: **Energy Aware is catastrophically worse than Baseline** (`p < 0.0001`). The other reward variants are **not significantly different from Baseline**:
+
+- Baseline vs Heavy Safety: `p = 0.9045`
+- Baseline vs Dense Progress: `p = 0.2564`
+- Baseline vs Sparse: `p = 0.5054`
 
 ### 4.2 Training Curves
 
 ![Training Curves](rq4-figures/line_reward_training.png)
 
-The training curves reveal different learning dynamics:
+The refreshed training curves support three broad patterns:
 
-- **Dense Progress** shows the most volatile training but achieves the highest mean (80.0), suggesting that the light-approach bonus provides useful gradient information.
-- **Heavy Safety** produces a slightly more conservative policy (78.3) as the continuous cat-proximity penalty discourages exploration near cats.
-- **Energy Aware** training produces consistently lower rewards because the agent over-invests in charging behavior, leaving less time for cleaning.
-- **Sparse** and **Baseline** are nearly interchangeable, confirming that the frame penalty (-0.1) has minimal impact.
+- **Baseline** and **Heavy Safety** both learn strong policies and finish near the top
+- **Dense Progress** remains viable but underperforms the best two in final evaluation
+- **Energy Aware** learns a much weaker policy, consistent with its low final mean
+
+This indicates that reward shaping can matter, but only some shaping terms are useful in this coarse state space.
 
 ### 4.3 Performance Stability
 
 ![Stability Comparison](rq4-figures/box_reward_stability.png)
 
-The boxplot reveals that **Energy Aware** has the tightest variance (std=9.5) but also the lowest mean (52.8) -- it has learned a consistent but suboptimal policy. **Sparse** shows the second-tightest variance (std=12.2) with competitive mean (79.2), making it the most reliably good variant.
+The stability plot shows two different kinds of behaviour:
+
+- **Energy Aware** is relatively consistent, but consistently bad
+- **Baseline**, **Heavy Safety**, and **Sparse** all occupy the strong-performance band with overlapping spread
+
+So the key distinction is not variance alone, but whether the reward pushes the policy toward the right objective.
 
 ### 4.4 Safety
 
 ![Safety Comparison](rq4-figures/bar_reward_safety.png)
 
-Heavy Safety and Energy Aware tie for the lowest cat freeze rate (0.3 each) compared to Baseline (0.5), but the improvement is modest and statistically insignificant. Dense Progress achieves 0.0 battery depletions, the best energy management among Q-Learning variants.
+Safety differences between the strong variants are modest:
+
+- Baseline: `0.4` freezes, `0.1` depletions
+- Heavy Safety: `0.5` freezes, `0.0` depletions
+- Dense Progress: `0.3` freezes, `0.1` depletions
+- Sparse: `0.2` freezes, `0.0` depletions
+
+The most important conclusion is that **extra safety-oriented reward terms do not produce a dramatic safety advantage**. The hard safety overrides in the controller still do most of the work.
 
 ## 5. Discussion
 
 ### 5.1 Key Findings
 
-1. **Reward shaping can dramatically hurt performance**: the Energy Aware variant's continuous penalty for low battery (mean=52.8) performs 34% worse than Baseline (mean=79.8, p=0.0007). Over-penalizing a secondary objective causes the agent to neglect its primary task.
+1. **Over-penalising low battery is highly damaging**. Energy Aware drops to `42.6` mean dirt, roughly half the Baseline score.
+2. **Baseline remains the best-performing reward design** in the refreshed evaluation.
+3. **Heavy Safety and Sparse are both competitive alternatives**, but neither beats Baseline significantly.
+4. **Dense Progress is no longer the best variant** under the current code and retraining setup.
+5. **Reward shaping has limited leverage compared with representation quality**: four variants cluster together while one bad penalty design collapses performance.
 
-2. **Most reward variants converge to similar performance**: Baseline, Heavy Safety, Dense Progress, and Sparse all score 78-80 dirt, suggesting the coarse state space limits how much reward design can differentiate policies.
+### 5.2 Why Energy Aware Fails
 
-3. **Dense Progress is the best overall**: it matches Baseline in mean (80.0) with lower variance (std=15.5 vs 18.7) and achieves zero battery depletions, making it the most balanced variant.
-
-4. **Sparse reward is surprisingly strong**: removing the frame penalty and battery penalty entirely (Sparse, mean=79.2) has no significant effect, confirming that the +10 dirt reward dominates the learning signal.
-
-5. **Safety-oriented rewards have limited impact**: the Heavy Safety cat-proximity penalty reduces freezes from 0.5 to 0.3, but the hard-coded safety overrides in the Q-Learning brain already handle most cat encounters before the learned policy is consulted.
-
-### 5.2 Why Energy Aware Failed
-
-The Energy Aware variant's -3.0 per frame at critical battery creates a strong negative signal that dominates the reward landscape. The agent learns to prioritize charging above all else, spending excessive time near chargers. This demonstrates a classic reward design pitfall: **penalty magnitude must be calibrated relative to the primary reward signal**. A -3.0 per frame penalty accumulates faster than the +10 per dirt bonus can offset it.
+The `-3.0` per-frame penalty at very low battery is too strong relative to the main cleaning reward. It creates an incentive landscape where avoiding critical battery states matters more than collecting dirt. The learned policy becomes over-cautious and spends too much time prioritising charging-related behaviour.
 
 ### 5.3 Limitations
 
-- Only one state representation tested; finer discretization could amplify reward differences.
-- Fixed hyperparameters (alpha, gamma, epsilon schedule) across all variants.
-- Safety overrides bypass Q-learning, limiting how much safety-oriented rewards can teach.
-- Each variant trained only once (200 episodes); multiple independent training runs would provide more robust Q-tables.
+- Each reward variant is trained once; multiple independent training runs would give a more stable estimate.
+- The tabular state representation is still coarse, which limits how much reward shaping can differentiate good policies.
+- Hard-coded safety overrides bypass some dangerous situations before Q-Learning decisions are applied.
 
 ## 6. Conclusion
 
-Reward function design can significantly affect Q-Learning policy quality, but the direction of effect is not always intuitive. **Over-penalizing secondary objectives (like energy management) can catastrophically degrade primary task performance**. Among the variants tested, **Dense Progress** offers the best balance of cleaning efficiency, low variance, and energy management. **Sparse** reward is surprisingly competitive, suggesting that in environments with a clear primary objective, minimal reward signals may be preferable to complex multi-objective designs. The main bottleneck remains the coarse state representation, which limits how much any reward signal can differentiate learned policies.
+Reward design matters, but **bad shaping hurts more than clever shaping helps** in this project. The refreshed experiments show that **Baseline remains the strongest reward function**, while **Energy Aware is a clear failure mode**. Heavy Safety, Dense Progress, and Sparse all produce workable policies, but none improves enough over Baseline to justify replacing it. The more important bottleneck now appears to be the **state representation and training variance**, not the absence of sophisticated reward terms.

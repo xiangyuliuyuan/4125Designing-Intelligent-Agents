@@ -139,19 +139,6 @@ class Brain:
                 speedLeft = 5.0
                 speedRight = 5.0
 
-        elif battery < self.bot.battery_low_threshold:
-            # Low battery: let bot.update() path-following handle navigation
-            # to the charger. Brain just keeps moving forward and clears
-            # avoidance state so path-following can steer.
-            if self.isAvoiding:
-                self.isAvoiding = False
-                self.avoidCount = 0
-            if self.isAvoidingDebris:
-                self.isAvoidingDebris = False
-
-            speedLeft = 3.0
-            speedRight = 3.0
-
         elif forced_cat_freeze or cat_sum > self.cat_freeze_threshold:
             self.is_cat_frozen = True
             if self.isAvoiding:
@@ -194,6 +181,18 @@ class Brain:
                 self.cat_avoid_direction = -1
                 speedLeft = -3.0
                 speedRight = 3.0
+
+        elif battery < self.bot.battery_low_threshold:
+            # Low battery path following should not suppress cat safety.
+            # Once cat handling is clear, bot.update() will steer to charger.
+            if self.isAvoiding:
+                self.isAvoiding = False
+                self.avoidCount = 0
+            if self.isAvoidingDebris:
+                self.isAvoidingDebris = False
+
+            speedLeft = 3.0
+            speedRight = 3.0
 
         elif self.cat_avoid_hold_remaining > 0:
             self.cat_avoid_hold_remaining -= 1

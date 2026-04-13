@@ -14,7 +14,10 @@ def count_transitions(agents, frozen_agents, depleted_agents):
     for agent in agents:
         agent_key = getattr(agent, "name", id(agent))
 
-        if hasattr(agent, "brain") and getattr(agent.brain, "is_cat_frozen", False):
+        if hasattr(agent, "brain") and (
+            getattr(agent.brain, "is_cat_frozen", False)
+            or getattr(agent.brain, "force_cat_freeze", False)
+        ):
             next_frozen_agents.add(agent_key)
             if agent_key not in frozen_agents:
                 cat_freezes += 1
