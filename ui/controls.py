@@ -80,6 +80,7 @@ def create_brain_selector(parent, tk_module=None):
         "subsumption": "Subsumption 包容式",
         "potential_field": "APF 人工势场法",
         "qlearning": "Q-Learning",
+        "coverage": "Coverage 覆盖率",
     }
 
     frame = tk_module.Frame(parent, bg=BG_DARK)
@@ -92,7 +93,7 @@ def create_brain_selector(parent, tk_module=None):
     display_label.pack(side=tk_module.LEFT, padx=10)
 
     brain_type_var = tk_module.StringVar(value="subsumption")
-    menu = tk_module.OptionMenu(frame, brain_type_var, "subsumption", "potential_field", "qlearning")
+    menu = tk_module.OptionMenu(frame, brain_type_var, "subsumption", "potential_field", "qlearning", "coverage")
     menu.config(bg=BTN_NEUTRAL_BG, fg="#000000", font=FONT_SMALL, relief="flat", highlightthickness=0)
     menu.pack(fill=tk_module.X, pady=(2, 4))
 
