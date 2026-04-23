@@ -80,8 +80,14 @@ class Bot:
 
     def _should_queue_at_charger(self, agents):
         """True if the bot should stop and wait rather than approach its target
-        charger. Triggers when another bot has effectively claimed the charger
-        (already charging there, or closer to it than us and also seeking)."""
+        charger. Covers three distinct blocking cases:
+
+        1. Logical: another bot is currently charging at this slot.
+        2. Approach: another seeker is closer to (or docking at) the same charger.
+        3. Physical: another bot is still sitting in the dock area even though
+           it is no longer charging — e.g. the bot that just finished charging
+           had its logical state reset before it could physically drive away.
+        """
         charger = self.target_charger
         if charger is None or not self.charger:
             return False
@@ -106,6 +112,19 @@ class Bot:
                 return True
             if agent.charger and agent.distanceTo(charger) < my_dist:
                 return True
+
+        # Case 3: the dock itself is physically occupied by any bot — covers
+        # the window between "charger logically released" and "previous bot
+        # has driven clear". Without this, the follower stops queuing the
+        # instant reset_charging_state() runs and stalls against the
+        # non-penetration layer instead of waiting cleanly.
+        dock_block_radius = motion.BOT_CONTACT_DISTANCE
+        for agent in agents or []:
+            if agent is self or not isinstance(agent, Bot):
+                continue
+            if agent.distanceTo(charger) < dock_block_radius:
+                return True
+
         return False
 
     def reset_charging_state(self):

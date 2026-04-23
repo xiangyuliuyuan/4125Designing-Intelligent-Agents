@@ -2644,6 +2644,49 @@ class RegressionTests(unittest.TestCase):
             "leader is closest and charger is free — must not queue",
         )
 
+    def test_follower_still_waits_while_finished_bot_still_on_dock(self):
+        """Bug 17: between stop_charging/reset_charging_state and the finished
+        bot physically leaving, a follower must keep queuing (state-model gap
+        between 'charger logically free' and 'dock physically occupied')."""
+        from robot.motion import BOT_CONTACT_DISTANCE
+
+        # Charger looks "free" in the logical sense.
+        charger = types.SimpleNamespace(
+            name="C0", centreX=500, centreY=500, is_charging=False,
+            charging_bot=None, getLocation=lambda: (500, 500),
+        )
+        # Previous bot just finished charging: reset_charging_state() already
+        # ran so target_charger is None and charger/actively_charging are
+        # False -- but the bot is still physically sitting on the dock.
+        finished = self.make_bot("Finished")
+        finished.x, finished.y = 500.0, 500.0
+        finished.target_charger = None
+        finished.charger = False
+        finished.actively_charging = False
+
+        follower = self.make_bot("Follower")
+        follower.target_charger = charger
+        follower.charger = True
+        follower.battery = 300
+        follower.x, follower.y = 420.0, 500.0  # inside QUEUE_RADIUS
+
+        # With finished bot inside BOT_CONTACT_DISTANCE of the charger,
+        # the follower must queue despite all logical flags being cleared.
+        self.assertLess(finished.distanceTo(charger), BOT_CONTACT_DISTANCE)
+        self.assertTrue(
+            follower._should_queue_at_charger([finished, follower]),
+            "follower must keep queuing until the dock is physically clear",
+        )
+
+        # Once the finished bot drives clear of the dock, the follower
+        # must resume approach (no permanent blocking).
+        finished.x = 420.0  # >> BOT_CONTACT_DISTANCE from (500, 500)
+        self.assertGreater(finished.distanceTo(charger), BOT_CONTACT_DISTANCE)
+        self.assertFalse(
+            follower._should_queue_at_charger([finished, follower]),
+            "follower must resume once the dock is physically free",
+        )
+
     def test_queue_radius_is_wider_than_docking_radius(self):
         """Bug 16: queue radius must be wider than the docking zone so the
         follower stops outside the dock instead of bumping the charger."""
