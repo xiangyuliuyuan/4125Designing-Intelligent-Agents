@@ -37,6 +37,7 @@ def train_with_reward(reward_type, episodes=200, frames=1500, alpha=0.1, gamma=0
     epsilon = epsilon_start
     epsilon_decay_per_episode = (epsilon_start - epsilon_end) / max(episodes - 1, 1)
     csv_rows = []
+    ql_brains = []
 
     for ep in range(episodes):
         runtime.reset()
@@ -194,7 +195,8 @@ def train_with_reward(reward_type, episodes=200, frames=1500, alpha=0.1, gamma=0
     if ql_brains:
         ql_brains[0].q_table = shared_qtable or ql_brains[0].q_table
         ql_brains[0].save_qtable(qtable_output)
-        print(f"  Q-table saved: {qtable_output} ({len(shared_qtable)} entries)")
+        entries = len(shared_qtable) if shared_qtable else len(ql_brains[0].q_table)
+        print(f"  Q-table saved: {qtable_output} ({entries} entries)")
 
     # Save training CSV
     with open(csv_output, "w", newline="") as f:

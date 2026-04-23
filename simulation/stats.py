@@ -1,10 +1,17 @@
 import time
 
-from simulation.passive_index import count_debris as indexed_debris_count
+from simulation.passive_index import (
+    count_debris as indexed_debris_count,
+    count_remaining_trash as indexed_remaining_trash_count,
+)
 
 
 def count_debris(passive_objects):
     return indexed_debris_count(passive_objects)
+
+
+def count_remaining_trash(passive_objects):
+    return indexed_remaining_trash_count(passive_objects)
 
 
 def build_snapshot(passive_objects, agents, cats, chargers, count, start_time, now=None):
@@ -17,7 +24,7 @@ def build_snapshot(passive_objects, agents, cats, chargers, count, start_time, n
     elapsed_time = now - start_time
 
     return {
-        "debris": str(count_debris(passive_objects)),
+        "debris": str(count_remaining_trash(passive_objects)),
         "active_bots": str(active_bots),
         "avg_battery": str(avg_battery),
         "cats_count": str(len(cats)),

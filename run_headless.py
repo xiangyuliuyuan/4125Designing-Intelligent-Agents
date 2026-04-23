@@ -110,7 +110,10 @@ def flush_logs():
 
 
 def count_events(log_path):
-    contents = Path(log_path).read_text(encoding="utf-8")
+    try:
+        contents = Path(log_path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        contents = ""
     return {
         "collision_detected": contents.count("event=collision_detected"),
         "cat.panic_jump": contents.count("event=cat.panic_jump"),
@@ -276,10 +279,14 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--dt", type=float, default=FRAME_DT)
     parser.add_argument("--frames", type=int, default=TOTAL_FRAMES)
-    parser.add_argument("--log-filename", default=DEFAULT_HEADLESS_LOG_NAME)
+    parser.add_argument("--log-filename", default=None,
+                        help=f"Log filename (default: headless-<pid>.log to isolate parallel runs)")
     parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning", "coverage"])
     parser.add_argument("--qtable", default=None, help="Path to trained Q-table JSON (default: experiments/qtables/trained.json)")
     args = parser.parse_args(argv)
+
+    if args.log_filename is None:
+        args.log_filename = f"headless-{os.getpid()}.log"
 
     result = run_simulation(
         seed=args.seed,

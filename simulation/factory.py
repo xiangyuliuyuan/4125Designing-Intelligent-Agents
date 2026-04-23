@@ -13,7 +13,7 @@ from robot.brain import Brain
 from robot.brain_coverage import CoverageMapBrain
 from robot.brain_potential_field import PotentialFieldBrain
 from robot.brain_qlearning import QLearningBrain
-from simulation.passive_index import count_debris, invalidate_passive_object_index
+from simulation.passive_index import count_debris, count_remaining_trash, invalidate_passive_object_index
 from simulation.state import SimulationState
 
 logger = get_logger(__name__)
@@ -397,8 +397,8 @@ def add_random_dirt_with_count(canvas, passiveObjects, debris_label, stats_vars)
     invalidate_passive_object_index(passiveObjects)
     dirt_obj.draw_with_size(canvas)
 
-    current_debris = count_debris(passiveObjects)
-    stats_vars["debris"].config(text=str(current_debris))
+    current_trash = count_remaining_trash(passiveObjects)
+    stats_vars["debris"].config(text=str(current_trash))
     log_event(
         "INFO",
         logger,
@@ -406,7 +406,7 @@ def add_random_dirt_with_count(canvas, passiveObjects, debris_label, stats_vars)
         trash_type=trash_type,
         x=x,
         y=y,
-        debris_count=current_debris,
+        remaining_trash=current_trash,
     )
     return passiveObjects
 
@@ -424,6 +424,6 @@ def remove_dirt(canvas, passiveObjects, stats_vars):
             log_event("INFO", logger, event="control.dirt_removed", dirt=removed.name)
             break
 
-    current_debris = count_debris(passiveObjects)
-    stats_vars["debris"].config(text=str(current_debris))
+    current_trash = count_remaining_trash(passiveObjects)
+    stats_vars["debris"].config(text=str(current_trash))
     return passiveObjects

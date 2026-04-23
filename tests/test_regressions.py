@@ -2459,6 +2459,52 @@ class RegressionTests(unittest.TestCase):
             freeze_calls = [c for c in mock_log.call_args_list if c[1].get("event") == "bot.cat_freeze_started"]
             self.assertEqual(len(freeze_calls), 1)
 
+    def test_train_qlearning_zero_episodes_does_not_crash(self):
+        """Bug 7: train() with episodes=0 must not raise UnboundLocalError."""
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "experiments/train_qlearning.py", "--episodes", "0", "--frames", "1"],
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+        self.assertNotIn("UnboundLocalError", result.stderr)
+
+    def test_rq4_reward_training_zero_episodes_does_not_crash(self):
+        """Bug 8: RQ4 train_with_reward() with --training-episodes 0 must not raise."""
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "experiments/run_rq4_rewards.py",
+             "--training-episodes", "0", "--seeds", "1", "--frames", "1",
+             "--reward-types", "baseline"],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertNotIn("UnboundLocalError", result.stderr)
+
+    def test_count_events_tolerates_missing_log_file(self):
+        """Bug 9: count_events must not crash when another process deleted the log."""
+        from run_headless import count_events
+        result = count_events("/tmp/nonexistent_log_path_for_test.log")
+        self.assertEqual(result["collision_detected"], 0)
+        self.assertEqual(result["cat.panic_jump"], 0)
+        self.assertEqual(result["bot.physical_cat_freeze"], 0)
+
+    def test_stats_snapshot_counts_cleanable_dirt_not_only_debris(self):
+        """Bug 10: The '杂物剩余' stat must reflect dirt users add/remove/clean, not just debris."""
+        from simulation.stats import build_snapshot
+        from simulation.passive_index import invalidate_passive_object_index
+        from entities import dirt as dirt_mod
+
+        invalidate_passive_object_index()
+        passive = [
+            dirt_mod.plusDirt("D0", x=100, y=100, trash_type="dust"),
+            dirt_mod.plusDirt("D1", x=200, y=200, trash_type="crumb"),
+            dirt_mod.plusDirt("D2", x=300, y=300, trash_type="debris"),
+        ]
+        count = self.mod.Counter()
+        snap = build_snapshot(passive, [], [], [], count, 0.0, now=0.0)
+        self.assertEqual(snap["debris"], "3",
+                         "Remaining trash should include cleanable dust/crumb AND debris")
+
     def test_cat_collides_with_debris_across_wrap_boundary(self):
         """Bug 6: Cat collision detection must use wrapped distance in toroidal world."""
         from entities.cat import Cat

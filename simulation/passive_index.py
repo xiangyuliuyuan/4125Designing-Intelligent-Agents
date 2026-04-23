@@ -18,6 +18,7 @@ class PassiveObjectIndex:
     charger_objects: tuple[Charger, ...]
     cleanable_dirt_entries: tuple[tuple[int, Any], ...]
     debris_count: int
+    remaining_trash_count: int
 
 
 _cached_index: PassiveObjectIndex | None = None
@@ -49,6 +50,7 @@ def _build_index(passive_objects):
         charger_objects=tuple(charger_objects),
         cleanable_dirt_entries=tuple(cleanable_dirt_entries),
         debris_count=len(debris_objects),
+        remaining_trash_count=len(cleanable_dirt_entries) + len(debris_objects),
     )
 
 
@@ -76,3 +78,8 @@ def invalidate_passive_object_index(passive_objects=None):
 
 def count_debris(passive_objects):
     return get_passive_object_index(passive_objects).debris_count
+
+
+def count_remaining_trash(passive_objects):
+    """Count all remaining trash a user can see (cleanable + debris)."""
+    return get_passive_object_index(passive_objects).remaining_trash_count
