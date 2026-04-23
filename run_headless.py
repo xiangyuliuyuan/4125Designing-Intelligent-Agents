@@ -196,8 +196,11 @@ def _load_qtable_for_agents(agents, qtable_path, brain_type):
             agent.brain.set_training(False)
 
 
-def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=DEFAULT_HEADLESS_LOG_NAME, emit_stdout=True, brain_type="subsumption", qtable_path=None):
+def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=None, emit_stdout=True, brain_type="subsumption", qtable_path=None):
     runtime.reset()
+    if log_filename is None:
+        # Per-PID default keeps concurrent in-process/subprocess callers isolated.
+        log_filename = f"headless-{os.getpid()}.log"
     log_path = Path("logs") / log_filename
     reset_headless_log_files(log_path)
     log_path = configure_logging(
@@ -280,13 +283,10 @@ def main(argv=None):
     parser.add_argument("--dt", type=float, default=FRAME_DT)
     parser.add_argument("--frames", type=int, default=TOTAL_FRAMES)
     parser.add_argument("--log-filename", default=None,
-                        help=f"Log filename (default: headless-<pid>.log to isolate parallel runs)")
+                        help="Log filename (default: headless-<pid>.log to isolate parallel runs)")
     parser.add_argument("--brain-type", default="subsumption", choices=["subsumption", "potential_field", "qlearning", "coverage"])
     parser.add_argument("--qtable", default=None, help="Path to trained Q-table JSON (default: experiments/qtables/trained.json)")
     args = parser.parse_args(argv)
-
-    if args.log_filename is None:
-        args.log_filename = f"headless-{os.getpid()}.log"
 
     result = run_simulation(
         seed=args.seed,

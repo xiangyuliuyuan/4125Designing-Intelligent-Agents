@@ -1,3 +1,4 @@
+import os
 import types
 import unittest
 import runpy
@@ -2479,6 +2480,34 @@ class RegressionTests(unittest.TestCase):
             capture_output=True, text=True, timeout=60,
         )
         self.assertNotIn("UnboundLocalError", result.stderr)
+
+    def test_run_simulation_api_uses_pid_isolated_default_log(self):
+        """Bug 11: Direct run_simulation() callers must not share headless.log."""
+        import run_headless
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.mod.Bot("Bot0")
+        bot.setBrain(QLearningBrain(bot))
+        bot.setAStar(self.mod.AStar(1000, 1000, 20))
+        world = ([bot], [], self.mod.Counter(), [], 0, [], 0.0)
+
+        captured = {}
+
+        def fake_configure_logging(**kwargs):
+            captured["log_filename"] = kwargs.get("log_filename")
+            return "/tmp/unused.log"
+
+        with patch.object(run_headless, "initialise_world", return_value=world), \
+             patch.object(run_headless, "configure_logging", side_effect=fake_configure_logging), \
+             patch.object(run_headless, "reset_headless_log_files"), \
+             patch.object(run_headless, "count_events", return_value={
+                 "collision_detected": 0, "cat.panic_jump": 0, "bot.physical_cat_freeze": 0,
+             }):
+            run_headless.run_simulation(seed=0, frames=0, emit_stdout=False)
+
+        self.assertIsNotNone(captured["log_filename"])
+        self.assertIn(str(os.getpid()), captured["log_filename"],
+                      f"Default log must include PID, got {captured['log_filename']!r}")
 
     def test_count_events_tolerates_missing_log_file(self):
         """Bug 9: count_events must not crash when another process deleted the log."""
