@@ -58,9 +58,12 @@ class Bot:
     def has_right_of_way_over(self, other):
         """Total order for multi-bot conflicts so exactly one side yields.
 
-        Priority: a low-battery (charger-seeking) bot has right of way over
-        a normal-battery bot. Same class → deterministic tiebreak by name
-        (both sides compute the same answer, so mutual deadlock is impossible).
+        Priority tiers (highest → lowest):
+        1. Low-battery (charger-seeking) beats full-battery (cleaning).
+        2. Within the low-battery tier, LOWER battery wins — a critical bot
+           (e.g. battery 15) outranks a mildly low one (e.g. battery 474).
+        3. Within the full-battery tier, ties broken by name.
+        Both sides compute the same answer, so mutual deadlock is impossible.
         """
         if not hasattr(other, "battery") or not hasattr(other, "name"):
             return True
@@ -70,22 +73,65 @@ class Bot:
             return True
         if other_low and not my_low:
             return False
+        if my_low and other_low:
+            if self.battery != other.battery:
+                return self.battery < other.battery
         return self.name < other.name
 
     def should_yield_to_nearby_bots(self):
         """True if any bot within RIGHT_OF_WAY_RADIUS has priority over us.
         Used by the brain to pick yield-vs-proceed in an overlap encounter."""
+        return self.find_priority_threat() is not None
+
+    def find_priority_threat(self):
+        """Return the closest neighbor within RIGHT_OF_WAY_RADIUS that outranks
+        this bot (has right of way over us), or None."""
         agents = getattr(self, "_agents_ref", None) or []
         r_sq = self.RIGHT_OF_WAY_RADIUS * self.RIGHT_OF_WAY_RADIUS
+        best = None
+        best_d_sq = r_sq
         for other in agents:
             if other is self or not isinstance(other, Bot):
                 continue
             dx = motion.wrapped_delta(self.x, other.x)
             dy = motion.wrapped_delta(self.y, other.y)
-            if dx * dx + dy * dy < r_sq:
-                if not self.has_right_of_way_over(other):
-                    return True
-        return False
+            d_sq = dx * dx + dy * dy
+            if d_sq < best_d_sq and not self.has_right_of_way_over(other):
+                best_d_sq = d_sq
+                best = other
+        return best
+
+    def compute_yield_motion(self, threat):
+        """Produce (sl, sr) that actively clears space for `threat` — rotate
+        in place until facing away, then move forward. Replaces the naive
+        'back up along current heading' which could actually drive the
+        yielder TOWARD the priority bot when heading was random.
+
+        Hysteresis: once a turn direction is chosen, keep it until we're
+        close to the flee heading. Prevents frame-to-frame oscillation when
+        the flee direction is near antipodal (|angle_diff| ≈ π)."""
+        dx = motion.wrapped_delta(self.x, threat.x)
+        dy = motion.wrapped_delta(self.y, threat.y)
+        flee_angle = math.atan2(dy, dx)
+        # Shortest signed rotation in [-π, π], wrap-safe.
+        delta = flee_angle - self.theta
+        angle_diff = math.atan2(math.sin(delta), math.cos(delta))
+
+        if abs(angle_diff) < 0.25:
+            self._yield_turn_direction = 0
+            return 3.0, 3.0
+
+        committed = getattr(self, "_yield_turn_direction", 0)
+        if committed == 0:
+            committed = 1 if angle_diff >= 0 else -1
+            self._yield_turn_direction = committed
+        # Fast turn-in-place so a yielder actually clears the way quickly.
+        # omega = (sl - sr)/ll, so sl > sr makes theta increase (CCW). The
+        # sign of committed tracks the sign of angle_diff: positive means we
+        # want theta to increase toward flee_angle.
+        if committed > 0:
+            return 4.0, -4.0  # theta increases (CCW) — shorter path
+        return -4.0, 4.0  # theta decreases (CW) — shorter path
 
     def setBrain(self, brainp):
         self.brain = brainp
@@ -276,7 +322,13 @@ class Bot:
             if charger_occupied_by_other and (near_target_charger or self.queuing_at_charger):
                 waiting_for_charger = True
 
-        if waiting_for_charger:
+        # Conserve battery whenever the bot is actually stopped waiting for
+        # charger access — either classic "charger occupied" (above) OR the
+        # newer physical-dock-blocked queuing cases. Without this, a
+        # critically-low queuer dies at normal 1/frame drain while waiting
+        # for a camper to clear the dock (bot_qlearning failure mode).
+        conserving_battery = waiting_for_charger or self.queuing_at_charger
+        if conserving_battery:
             self.wait_counter += 1
             if self.wait_counter >= 5:
                 self.battery -= 1

@@ -213,7 +213,8 @@ class QLearningBrain:
 
         # 2. Bot overlap — asymmetric right-of-way to break symmetric deadlock
         if bot_sum > 20000 or self.isOverlapping:
-            if self.bot.should_yield_to_nearby_bots():
+            threat = self.bot.find_priority_threat()
+            if threat is not None:
                 if not self.isOverlapping:
                     self.isOverlapping = True
                     self.isAvoiding = True
@@ -223,14 +224,11 @@ class QLearningBrain:
                     self.isOverlapping = False
                     self.isAvoiding = False
                 else:
-                    turn = random.uniform(-0.5, 0.5)
+                    # Rotate to face away from the priority bot and drive
+                    # forward, rather than backing along a random heading.
                     self._reset_q_tracking()
-                    return (
-                        -self.overlap_back_speed + turn,
-                        -self.overlap_back_speed - turn,
-                        newX,
-                        newY,
-                    )
+                    sl, sr = self.bot.compute_yield_motion(threat)
+                    return sl, sr, newX, newY
             else:
                 # Priority side: crawl forward, skip Q-learning for this step.
                 if self.isOverlapping:
@@ -289,6 +287,22 @@ class QLearningBrain:
                 self.isAvoidingDebris = False
             self._reset_q_tracking()
             return float(speedLeft), float(speedRight), newX, newY
+
+        # Mid-range (3000 < bot_sum < 20000) directed yielding. Unlike the
+        # hand-written brains, Q-learning has no bot-avoid behavior of its
+        # own in this band — it just picks whatever action the trained table
+        # prefers, which often ends up being STOP / slow rotate and blocks
+        # higher-priority neighbors (seen with a full-battery bot camping
+        # the charger while a critical bot can't get past). Force the
+        # yielder to rotate away from the threat and drive forward, which
+        # actively clears space instead of reversing along a random heading.
+        if bot_sum > 3000:
+            threat = self.bot.find_priority_threat()
+            if threat is not None:
+                self.isAvoiding = True
+                self._reset_q_tracking()
+                sl, sr = self.bot.compute_yield_motion(threat)
+                return sl, sr, newX, newY
 
         # Bot avoidance flag for mode/color display (Bug 4)
         self.isAvoiding = bot_sum > 3000

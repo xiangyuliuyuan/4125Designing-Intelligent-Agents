@@ -2692,6 +2692,81 @@ class RegressionTests(unittest.TestCase):
         self.assertFalse(bot_a.brain.isOverlapping,
                          "Lower-name bot (BotA) has priority, must not back up")
 
+    def test_critical_battery_bot_outranks_mildly_low_battery_bot(self):
+        """Bug 19: within the low-battery tier, a more-urgent (lower battery)
+        bot must have priority over a less-urgent one — otherwise a critical
+        bot can be forced to yield to a bot that can still afford to wait."""
+        critical = self.make_bot("BotA_critical")  # lower name, but extremely low
+        critical.battery = 15
+        mild = self.make_bot("BotZ_mild")  # higher name, but only mildly low
+        mild.battery = 474
+
+        critical.x, critical.y = 500, 500
+        mild.x, mild.y = 540, 500
+        critical._agents_ref = [critical, mild]
+        mild._agents_ref = [critical, mild]
+
+        self.assertTrue(critical.has_right_of_way_over(mild),
+                        "Critical-battery bot must outrank mildly low")
+        self.assertFalse(mild.has_right_of_way_over(critical),
+                         "Mildly-low bot must not outrank a critical one")
+        self.assertFalse(critical.should_yield_to_nearby_bots())
+        self.assertTrue(mild.should_yield_to_nearby_bots())
+
+        # And name order alone must NOT flip the urgency-based priority.
+        critical2 = self.make_bot("BotZ_critical")
+        critical2.battery = 15
+        mild2 = self.make_bot("BotA_mild")
+        mild2.battery = 474
+        critical2.x, critical2.y = 500, 500
+        mild2.x, mild2.y = 540, 500
+        critical2._agents_ref = [critical2, mild2]
+        mild2._agents_ref = [critical2, mild2]
+        self.assertTrue(critical2.has_right_of_way_over(mild2),
+                        "Urgency beats name tiebreak")
+
+    def test_qlearning_yielder_actively_clears_space_in_mid_range(self):
+        """Bug 19: a Q-learning bot that should yield must actively clear
+        space for its priority neighbor even in the mid-range proximity band
+        (3000 < bot_sum < 20000), not sit at STOP per a poorly-trained table.
+        Over a handful of frames the yielder must move AWAY from the threat."""
+        from robot.brain_qlearning import QLearningBrain, STOP
+
+        camper = self.make_bot("BotZ_camper")
+        camper.battery = 848
+        camper.x, camper.y = 500, 500
+        camper.theta = 0.0  # facing east, toward the urgent bot
+        brain = QLearningBrain(camper)
+        camper.setBrain(brain)
+
+        urgent = self.make_bot("BotA_urgent")
+        urgent.battery = 15
+        urgent.x, urgent.y = 540, 500
+        camper._agents_ref = [camper, urgent]
+
+        # Bias every state toward STOP so raw Q-learning would just sit still.
+        state = brain._discretize_state(0, 0, 0, 0, 848, 0, 0, 5000, 0, 0, 0)
+        brain.q_table[(state, STOP)] = 100.0
+
+        # Run a handful of frames of thinkAndAct + manual motion update so
+        # we can watch the yielder actually move.
+        import math
+        from robot import motion as _motion
+        initial_dist = abs(_motion.wrapped_delta(camper.x, urgent.x))
+        for _ in range(30):
+            sl, sr, _, _ = brain.thinkAndAct(0, 0, 0, 0, camper.x, camper.y,
+                                              0, 0, 848, 0, 0, 5000, 0, 0, 0)
+            # No STOP allowed — Q-learning's stop action must be overridden.
+            self.assertFalse(sl == 0.0 and sr == 0.0,
+                             "Yielder must not sit at STOP")
+            camper.sl, camper.sr = sl, sr
+            _motion.advance(camper, 1.0)
+            _motion.wrap(camper)
+
+        final_dist = abs(_motion.wrapped_delta(camper.x, urgent.x))
+        self.assertGreater(final_dist, initial_dist + 5.0,
+                           f"Yielder must actively clear space: {initial_dist:.1f} → {final_dist:.1f}")
+
     def test_low_battery_bot_has_right_of_way_over_full_battery_bot(self):
         """Bug 18: a charger-seeking bot (low battery) must have priority
         over a cleaning bot (full battery) regardless of name order."""
