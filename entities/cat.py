@@ -85,11 +85,20 @@ class Cat:
 
     @staticmethod
     def _collides_with_debris(px, py, debris_list):
+        half = WORLD_SIZE / 2
         for obj in debris_list:
             ox, oy = obj.getLocation()
             radius = CAT_COLLISION_RADIUS + getattr(obj, "size", 0)
             dx = px - ox
             dy = py - oy
+            if dx > half:
+                dx -= WORLD_SIZE
+            elif dx < -half:
+                dx += WORLD_SIZE
+            if dy > half:
+                dy -= WORLD_SIZE
+            elif dy < -half:
+                dy += WORLD_SIZE
             if dx * dx + dy * dy < radius * radius:
                 return True
         return False

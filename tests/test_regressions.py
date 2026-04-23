@@ -2459,6 +2459,20 @@ class RegressionTests(unittest.TestCase):
             freeze_calls = [c for c in mock_log.call_args_list if c[1].get("event") == "bot.cat_freeze_started"]
             self.assertEqual(len(freeze_calls), 1)
 
+    def test_cat_collides_with_debris_across_wrap_boundary(self):
+        """Bug 6: Cat collision detection must use wrapped distance in toroidal world."""
+        from entities.cat import Cat
+        from entities import dirt as dirt_mod
+
+        debris = dirt_mod.plusDirt("D0", x=998, y=500, trash_type="debris")
+        debris.size = 12
+
+        # Cat at x=4 -- unwrapped distance 994, wrapped distance 6 -> should collide
+        self.assertTrue(Cat._collides_with_debris(4, 500, [debris]))
+
+        # Cat at x=500 -- unwrapped distance 498, well beyond collision radius
+        self.assertFalse(Cat._collides_with_debris(500, 500, [debris]))
+
     def test_coverage_find_least_visited_returns_nearest_unvisited(self):
         """Bug 5: Single-pass _find_least_visited_cell must find the nearest least-visited cell."""
         from robot.brain_coverage import CoverageMapBrain
