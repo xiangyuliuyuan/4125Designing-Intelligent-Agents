@@ -185,39 +185,44 @@ class PotentialFieldBrain:
                 self.overlapCount = 0
             return speedLeft, speedRight, newX, newY
 
-        # --- Priority 2: Bot overlap (back away) ---
+        # --- Priority 2: Bot overlap (asymmetric right-of-way) ---
         if is_overlap or self.isOverlapping:
-            if not self.isOverlapping:
-                self.isOverlapping = True
-                self.overlapCount = self.overlap_back_frames
-                self.overlap_direction = random.choice([-1, 1])
-                log_event(
-                    "INFO",
-                    logger,
-                    event="bot.overlap_started",
-                    bot=self.bot.name,
-                    mode="overlap",
-                    reason="bot_signal_threshold",
-                    bot_signal=bot_sum,
-                )
-
-            if self.overlapCount > 0:
-                turn = random.uniform(-0.5, 0.5)
-                speedLeft = -self.overlap_back_speed + turn
-                speedRight = -self.overlap_back_speed - turn
-                self.overlapCount -= 1
+            if self.bot.should_yield_to_nearby_bots():
+                if not self.isOverlapping:
+                    self.isOverlapping = True
+                    self.overlapCount = self.overlap_back_frames
+                    self.overlap_direction = random.choice([-1, 1])
+                    log_event(
+                        "INFO",
+                        logger,
+                        event="bot.overlap_started",
+                        bot=self.bot.name,
+                        mode="overlap",
+                        reason="yielding_right_of_way",
+                        bot_signal=bot_sum,
+                    )
+                if self.overlapCount > 0:
+                    turn = random.uniform(-0.5, 0.5)
+                    speedLeft = -self.overlap_back_speed + turn
+                    speedRight = -self.overlap_back_speed - turn
+                    self.overlapCount -= 1
+                else:
+                    self.isOverlapping = False
+                    log_event(
+                        "INFO",
+                        logger,
+                        event="bot.overlap_resolved",
+                        bot=self.bot.name,
+                        mode=derive_bot_mode(self.bot),
+                        reason="separation_complete",
+                    )
+                    speedLeft = base_speed
+                    speedRight = base_speed
             else:
-                self.isOverlapping = False
-                log_event(
-                    "INFO",
-                    logger,
-                    event="bot.overlap_resolved",
-                    bot=self.bot.name,
-                    mode=derive_bot_mode(self.bot),
-                    reason="separation_complete",
-                )
-                speedLeft = base_speed
-                speedRight = base_speed
+                if self.isOverlapping:
+                    self.isOverlapping = False
+                speedLeft = 2.0
+                speedRight = 2.0
 
             self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY

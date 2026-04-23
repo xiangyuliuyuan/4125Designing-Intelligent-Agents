@@ -1933,7 +1933,10 @@ class RegressionTests(unittest.TestCase):
         charger.centreX = 400
         charger.centreY = 100
 
-        bots = [self.make_bot("BotA"), self.make_bot("BotB")]
+        # Subject is the yielder in the name-tiebreak (both bots are equally
+        # low-battery, so name order decides). "BotZ" > "BotA_priority" so
+        # BotZ yields and performs the overlap backup we're asserting on.
+        bots = [self.make_bot("BotZ"), self.make_bot("BotA_priority")]
         for bot in bots:
             bot.x = 100
             bot.y = 100
@@ -2407,20 +2410,27 @@ class RegressionTests(unittest.TestCase):
         """Bug 2: When overlap resolves, the bot should not output backward speeds."""
         from robot.brain_qlearning import QLearningBrain
 
-        bot = self.make_bot("Overlapper")
+        # Yielder needs a higher-priority neighbor in range. Name-tiebreak
+        # makes "A_Priority" win, so our bot ("Z_Yielder") must back up.
+        priority = self.make_bot("A_Priority")
+        priority.x, priority.y = 510, 500  # close enough to be detected
+
+        bot = self.make_bot("Z_Yielder")
+        bot.x, bot.y = 500, 500
+        bot._agents_ref = [bot, priority]
         brain = QLearningBrain(bot)
         bot.setBrain(brain)
 
-        # Trigger overlap
-        brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
+        # Trigger overlap (bot is the yielder, should enter backing state)
+        brain.thinkAndAct(0, 0, 0, 0, bot.x, bot.y, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
         self.assertTrue(brain.isOverlapping)
 
         # Drain overlap counter
         for _ in range(14):
-            brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
+            brain.thinkAndAct(0, 0, 0, 0, bot.x, bot.y, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
 
         # Frame after overlap resolves with no bot signal
-        sl, sr, _, _ = brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 0, 0, 0, 0)
+        sl, sr, _, _ = brain.thinkAndAct(0, 0, 0, 0, bot.x, bot.y, 0, 0, 800, 0, 0, 0, 0, 0, 0)
         self.assertFalse(brain.isOverlapping)
         self.assertGreaterEqual(sl, 0.0, "Should not output backward speed after overlap resolves")
 
@@ -2643,6 +2653,64 @@ class RegressionTests(unittest.TestCase):
             leader._should_queue_at_charger([leader, follower]),
             "leader is closest and charger is free — must not queue",
         )
+
+    def test_right_of_way_breaks_head_on_symmetric_deadlock(self):
+        """Bug 18: two bots facing each other must NOT both enter the overlap
+        backing state — exactly one yields, the other continues."""
+        from robot.brain import Brain
+
+        # Two bots facing each other at the contact boundary. Same battery,
+        # so priority comes from name tiebreak: "BotA" < "BotZ" → BotA wins.
+        bot_a = self.make_bot("BotA")
+        bot_a.x, bot_a.y = 500, 500
+        bot_a.theta = 0.0  # facing +x (east)
+        bot_a.setBrain(Brain(bot_a))
+
+        bot_z = self.make_bot("BotZ")
+        bot_z.x, bot_z.y = 556, 500
+        bot_z.theta = 3.14159  # facing -x (west), toward bot_a
+        bot_z.setBrain(Brain(bot_z))
+
+        bot_a._agents_ref = [bot_a, bot_z]
+        bot_z._agents_ref = [bot_a, bot_z]
+
+        # Feed identical high bot-sensor signal to both (head-on encounter).
+        overlap_sig = 25000
+        bot_a.brain.thinkAndAct(0, 0, 0, 0, bot_a.x, bot_a.y, 0, 0, 800,
+                                 0, 0, overlap_sig, 0, 0, 0)
+        bot_z.brain.thinkAndAct(0, 0, 0, 0, bot_z.x, bot_z.y, 0, 0, 800,
+                                 0, 0, overlap_sig, 0, 0, 0)
+
+        # Exactly one must be in overlap backing mode (not both) — symmetry
+        # broken.
+        self.assertNotEqual(
+            bot_a.brain.isOverlapping, bot_z.brain.isOverlapping,
+            "Both bots entered overlap mode — symmetric deadlock",
+        )
+        self.assertTrue(bot_z.brain.isOverlapping,
+                        "Higher-name bot (BotZ) should yield")
+        self.assertFalse(bot_a.brain.isOverlapping,
+                         "Lower-name bot (BotA) has priority, must not back up")
+
+    def test_low_battery_bot_has_right_of_way_over_full_battery_bot(self):
+        """Bug 18: a charger-seeking bot (low battery) must have priority
+        over a cleaning bot (full battery) regardless of name order."""
+        seeker = self.make_bot("BotZ_seeker")  # higher name, but low battery
+        seeker.battery = 300
+        cleaner = self.make_bot("BotA_cleaner")  # lower name, but full battery
+        cleaner.battery = 900
+
+        seeker.x, seeker.y = 500, 500
+        cleaner.x, cleaner.y = 540, 500  # within RIGHT_OF_WAY_RADIUS
+        seeker._agents_ref = [seeker, cleaner]
+        cleaner._agents_ref = [seeker, cleaner]
+
+        # Battery-class priority beats name tiebreak: seeker has right of way,
+        # cleaner must yield even though its name is lexicographically smaller.
+        self.assertFalse(seeker.should_yield_to_nearby_bots(),
+                         "Low-battery seeker must not yield to a cleaner")
+        self.assertTrue(cleaner.should_yield_to_nearby_bots(),
+                        "Full-battery cleaner must yield to a low-battery seeker")
 
     def test_follower_still_waits_while_finished_bot_still_on_dock(self):
         """Bug 17: between stop_charging/reset_charging_state and the finished

@@ -211,25 +211,33 @@ class QLearningBrain:
             self._reset_q_tracking()
             return 0.0, 0.0, newX, newY
 
-        # 2. Bot overlap - back away with timeout
-        if bot_sum > 20000 and not self.isOverlapping:
-            self.isOverlapping = True
-            self.isAvoiding = True
-            self.overlapCount = self.overlap_back_frames
-        if self.isOverlapping:
-            self.overlapCount -= 1
-            if self.overlapCount <= 0 or bot_sum <= 20000:
-                self.isOverlapping = False
-                self.isAvoiding = False
+        # 2. Bot overlap — asymmetric right-of-way to break symmetric deadlock
+        if bot_sum > 20000 or self.isOverlapping:
+            if self.bot.should_yield_to_nearby_bots():
+                if not self.isOverlapping:
+                    self.isOverlapping = True
+                    self.isAvoiding = True
+                    self.overlapCount = self.overlap_back_frames
+                self.overlapCount -= 1
+                if self.overlapCount <= 0 or bot_sum <= 20000:
+                    self.isOverlapping = False
+                    self.isAvoiding = False
+                else:
+                    turn = random.uniform(-0.5, 0.5)
+                    self._reset_q_tracking()
+                    return (
+                        -self.overlap_back_speed + turn,
+                        -self.overlap_back_speed - turn,
+                        newX,
+                        newY,
+                    )
             else:
-                turn = random.uniform(-0.5, 0.5)
+                # Priority side: crawl forward, skip Q-learning for this step.
+                if self.isOverlapping:
+                    self.isOverlapping = False
+                    self.isAvoiding = False
                 self._reset_q_tracking()
-                return (
-                    -self.overlap_back_speed + turn,
-                    -self.overlap_back_speed - turn,
-                    newX,
-                    newY,
-                )
+                return 2.0, 2.0, newX, newY
 
         # 3. Cat avoidance
         if cat_sum > 3000:

@@ -110,37 +110,48 @@ class Brain:
                 self.turn_angle_sum = 0
             if self.isAvoidingDebris:
                 self.isAvoidingDebris = False
-            if not self.isOverlapping:
-                self.isOverlapping = True
-                self.overlapCount = self.overlap_back_frames
-                self.overlap_direction = random.choice([-1, 1])
-                log_event(
-                    "INFO",
-                    logger,
-                    event="bot.overlap_started",
-                    bot=self.bot.name,
-                    mode="overlap",
-                    reason="bot_signal_threshold",
-                    bot_signal=bot_sum,
-                )
 
-            if self.overlapCount > 0:
-                turn = random.uniform(-0.5, 0.5)
-                speedLeft = -self.overlap_back_speed + turn
-                speedRight = -self.overlap_back_speed - turn
-                self.overlapCount -= 1
+            # Asymmetric right-of-way: only the lower-priority bot backs up.
+            # Breaks the head-on symmetric deadlock where two bots entered
+            # backup mode together and oscillated at contact range.
+            if self.bot.should_yield_to_nearby_bots():
+                if not self.isOverlapping:
+                    self.isOverlapping = True
+                    self.overlapCount = self.overlap_back_frames
+                    self.overlap_direction = random.choice([-1, 1])
+                    log_event(
+                        "INFO",
+                        logger,
+                        event="bot.overlap_started",
+                        bot=self.bot.name,
+                        mode="overlap",
+                        reason="yielding_right_of_way",
+                        bot_signal=bot_sum,
+                    )
+                if self.overlapCount > 0:
+                    turn = random.uniform(-0.5, 0.5)
+                    speedLeft = -self.overlap_back_speed + turn
+                    speedRight = -self.overlap_back_speed - turn
+                    self.overlapCount -= 1
+                else:
+                    self.isOverlapping = False
+                    log_event(
+                        "INFO",
+                        logger,
+                        event="bot.overlap_resolved",
+                        bot=self.bot.name,
+                        mode=derive_bot_mode(self.bot),
+                        reason="separation_complete",
+                    )
+                    speedLeft = 5.0
+                    speedRight = 5.0
             else:
-                self.isOverlapping = False
-                log_event(
-                    "INFO",
-                    logger,
-                    event="bot.overlap_resolved",
-                    bot=self.bot.name,
-                    mode=derive_bot_mode(self.bot),
-                    reason="separation_complete",
-                )
-                speedLeft = 5.0
-                speedRight = 5.0
+                # Priority side: crawl forward. Non-penetration keeps us from
+                # hitting the yielder; as they back up, we regain space.
+                if self.isOverlapping:
+                    self.isOverlapping = False
+                speedLeft = 2.0
+                speedRight = 2.0
 
         elif forced_cat_freeze or cat_sum > self.cat_freeze_threshold:
             self.is_cat_frozen = True

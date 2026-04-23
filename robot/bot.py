@@ -50,6 +50,43 @@ class Bot:
     def setAStar(self, astar):
         self.astar = astar
 
+    # Detection radius for the right-of-way check. Must cover the sensor
+    # overlap range (~60 px center-to-center) plus a small buffer so both
+    # sides of a head-on encounter evaluate the same neighbors.
+    RIGHT_OF_WAY_RADIUS = 80.0
+
+    def has_right_of_way_over(self, other):
+        """Total order for multi-bot conflicts so exactly one side yields.
+
+        Priority: a low-battery (charger-seeking) bot has right of way over
+        a normal-battery bot. Same class → deterministic tiebreak by name
+        (both sides compute the same answer, so mutual deadlock is impossible).
+        """
+        if not hasattr(other, "battery") or not hasattr(other, "name"):
+            return True
+        my_low = self.battery < self.battery_low_threshold
+        other_low = other.battery < self.battery_low_threshold
+        if my_low and not other_low:
+            return True
+        if other_low and not my_low:
+            return False
+        return self.name < other.name
+
+    def should_yield_to_nearby_bots(self):
+        """True if any bot within RIGHT_OF_WAY_RADIUS has priority over us.
+        Used by the brain to pick yield-vs-proceed in an overlap encounter."""
+        agents = getattr(self, "_agents_ref", None) or []
+        r_sq = self.RIGHT_OF_WAY_RADIUS * self.RIGHT_OF_WAY_RADIUS
+        for other in agents:
+            if other is self or not isinstance(other, Bot):
+                continue
+            dx = motion.wrapped_delta(self.x, other.x)
+            dy = motion.wrapped_delta(self.y, other.y)
+            if dx * dx + dy * dy < r_sq:
+                if not self.has_right_of_way_over(other):
+                    return True
+        return False
+
     def setBrain(self, brainp):
         self.brain = brainp
 
