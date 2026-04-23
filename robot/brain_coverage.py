@@ -69,27 +69,24 @@ class CoverageMapBrain:
         cur_gx = max(0, min(GRID_CELLS - 1, int(x / CELL_SIZE)))
         cur_gy = max(0, min(GRID_CELLS - 1, int(y / CELL_SIZE)))
 
-        min_visits = float("inf")
-        for gy in range(GRID_CELLS):
-            for gx in range(GRID_CELLS):
-                if (gx, gy) != (cur_gx, cur_gy):
-                    if self.coverage_grid[gy][gx] < min_visits:
-                        min_visits = self.coverage_grid[gy][gx]
-
-        # Among cells with min_visits, find the nearest one
         best = None
+        best_visits = float("inf")
         best_dist_sq = float("inf")
+
         for gy in range(GRID_CELLS):
+            row = self.coverage_grid[gy]
             for gx in range(GRID_CELLS):
-                if (gx, gy) == (cur_gx, cur_gy):
+                if gx == cur_gx and gy == cur_gy:
                     continue
-                if self.coverage_grid[gy][gx] == min_visits:
+                visits = row[gx]
+                if visits < best_visits or (visits == best_visits):
                     cx = gx * CELL_SIZE + CELL_SIZE / 2
                     cy = gy * CELL_SIZE + CELL_SIZE / 2
                     dx = _wrapped_delta(cx, x)
                     dy = _wrapped_delta(cy, y)
                     d2 = dx * dx + dy * dy
-                    if d2 < best_dist_sq:
+                    if visits < best_visits or d2 < best_dist_sq:
+                        best_visits = visits
                         best_dist_sq = d2
                         best = (gx, gy)
 
@@ -129,6 +126,40 @@ class CoverageMapBrain:
         return max(-5.0, min(8.0, speedLeft)), max(-5.0, min(8.0, speedRight))
 
     # ------------------------------------------------------------------
+    # Logging helpers
+    # ------------------------------------------------------------------
+    def _log_cat_transitions(self, was_cat_frozen, was_avoiding_cat, cat_sum):
+        if self.is_cat_frozen and not was_cat_frozen:
+            log_event(
+                "INFO", logger,
+                event="bot.cat_freeze_started",
+                bot=self.bot.name, mode="cat_freeze",
+                reason="cat_too_close", cat_signal=cat_sum,
+            )
+        elif was_cat_frozen and not self.is_cat_frozen:
+            log_event(
+                "INFO", logger,
+                event="bot.cat_freeze_resolved",
+                bot=self.bot.name, mode=derive_bot_mode(self.bot),
+                reason="cat_signal_reduced" if cat_sum <= self.cat_freeze_threshold else "higher_priority_behavior",
+                cat_signal=cat_sum,
+            )
+        if self.isAvoidingCat and not was_avoiding_cat:
+            log_event(
+                "INFO", logger,
+                event="bot.cat_avoid_started",
+                bot=self.bot.name, mode="avoid_cat",
+                reason="cat_detected", cat_signal=cat_sum,
+            )
+        elif was_avoiding_cat and not self.isAvoidingCat:
+            log_event(
+                "INFO", logger,
+                event="bot.cat_avoid_resolved",
+                bot=self.bot.name, mode=derive_bot_mode(self.bot),
+                reason="cat_signal_cleared",
+            )
+
+    # ------------------------------------------------------------------
     # Main decision method (Subsumption + coverage-guided default)
     # ------------------------------------------------------------------
     def thinkAndAct(self, lightL, lightR, chargerL, chargerR, x, y, sl, sr,
@@ -139,6 +170,10 @@ class CoverageMapBrain:
 
         # Update coverage map with current position
         self._update_coverage(x, y)
+
+        forced_cat_freeze = self.force_cat_freeze
+        was_cat_frozen = self.is_cat_frozen and not forced_cat_freeze
+        was_avoiding_cat = self.isAvoidingCat
 
         bot_sum = botL + botR
         debris_sum = debrisL + debrisR
@@ -157,6 +192,7 @@ class CoverageMapBrain:
             if self.isOverlapping:
                 self.isOverlapping = False
                 self.overlapCount = 0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Priority 2: Bot overlap ---
@@ -180,6 +216,7 @@ class CoverageMapBrain:
                 self.isOverlapping = False
                 speedLeft = 5.0
                 speedRight = 5.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Priority 3: Cat freeze ---
@@ -192,6 +229,7 @@ class CoverageMapBrain:
                 self.isAvoidingDebris = False
             self.isAvoidingCat = False
             self.cat_avoid_hold_remaining = 0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return 0.0, 0.0, newX, newY
 
         # --- Priority 4: Cat avoidance ---
@@ -219,6 +257,7 @@ class CoverageMapBrain:
             else:
                 self.cat_avoid_direction = -1
                 speedLeft, speedRight = -3.0, 3.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Priority 5: Low battery ---
@@ -230,6 +269,7 @@ class CoverageMapBrain:
                 self.isAvoidingDebris = False
             speedLeft = 3.0
             speedRight = 3.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         elif self.cat_avoid_hold_remaining > 0:
@@ -243,6 +283,7 @@ class CoverageMapBrain:
                     speedLeft, speedRight = 3.0, -3.0
                 else:
                     speedLeft, speedRight = -3.0, 3.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Priority 6: Debris avoidance ---
@@ -263,6 +304,7 @@ class CoverageMapBrain:
                 self.isAvoidingDebris = False
                 self.debris_avoid_counter = 0
                 speedLeft, speedRight = 5.0, 5.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Priority 7: Bot avoidance ---
@@ -279,6 +321,7 @@ class CoverageMapBrain:
                 if self.turn_angle_sum >= self.full_circle_frames:
                     self.avoidDirection = -self.avoidDirection
                     self.turn_angle_sum = 0
+                self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
                 return speedLeft, speedRight, newX, newY
 
         elif bot_sum > 3000:
@@ -289,6 +332,7 @@ class CoverageMapBrain:
                 speedLeft, speedRight = 3.0, -3.0
             else:
                 speedLeft, speedRight = -3.0, 3.0
+            self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
             return speedLeft, speedRight, newX, newY
 
         # --- Default: Coverage-guided exploration ---
@@ -304,4 +348,5 @@ class CoverageMapBrain:
             # Fallback: random wandering (should not happen)
             speedLeft, speedRight = 5.0, 5.0
 
+        self._log_cat_transitions(was_cat_frozen, was_avoiding_cat, cat_sum)
         return speedLeft, speedRight, newX, newY

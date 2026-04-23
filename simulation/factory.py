@@ -18,6 +18,21 @@ from simulation.state import SimulationState
 
 logger = get_logger(__name__)
 
+# Monotonic entity counters to prevent naming collisions after add/remove cycles.
+_entity_counters = {"bot": 0, "cat": 0, "charger": 0}
+
+
+def _next_entity_name(entity_type):
+    idx = _entity_counters[entity_type]
+    _entity_counters[entity_type] = idx + 1
+    return f"{entity_type.capitalize()}{idx}"
+
+
+def _reset_entity_counters():
+    for key in _entity_counters:
+        _entity_counters[key] = 0
+
+
 # ---------------------------------------------------------------------------
 # Placement helpers — prevent entities from spawning on top of each other
 # ---------------------------------------------------------------------------
@@ -155,6 +170,7 @@ def create_world(
     if count is None:
         count = Counter()
 
+    _reset_entity_counters()
     state = SimulationState(count=count, debris_count=debris_count_initial, start_time=time.time())
 
     width = canvas.winfo_width()
@@ -167,7 +183,7 @@ def create_world(
 
     # --- Place chargers first (they are obstacles for placement purposes) ---
     for i in range(noOfCharger):
-        charger = Charger(f"Charger{i}")
+        charger = Charger(_next_entity_name("charger"))
         cx, cy = _find_clear_position(state.passive_objects, _CHARGER_CLEARANCE,
                                       world_size=width)
         charger.centreX, charger.centreY = cx, cy
@@ -207,7 +223,7 @@ def create_world(
 
     # --- Place cats (avoid debris & existing actors) ---
     for i in range(noOfCats):
-        cat = Cat(f"Cat{i}")
+        cat = Cat(_next_entity_name("cat"))
         cx, cy = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
                                       world_size=width,
                                       agents=state.agents,
@@ -220,7 +236,7 @@ def create_world(
 
     # --- Place bots (avoid debris & existing actors) ---
     for i in range(noOfBots):
-        bot = _make_bot(f"Bot{i}", state.astar, brain_type=brain_type)
+        bot = _make_bot(_next_entity_name("bot"), state.astar, brain_type=brain_type)
         bx, by = _find_clear_position(state.passive_objects, _DEBRIS_CLEARANCE,
                                       world_size=width,
                                       agents=state.agents,
@@ -271,8 +287,7 @@ def createObjects(
 
 
 def add_bot(canvas, agents, passiveObjects, astar, chargers, brain_type="subsumption", cats=()):
-    bot_num = len(agents)
-    bot = _make_bot(f"Bot{bot_num}", astar, brain_type=brain_type)
+    bot = _make_bot(_next_entity_name("bot"), astar, brain_type=brain_type)
     bx, by = _find_clear_position(
         passiveObjects,
         _DEBRIS_CLEARANCE,
@@ -302,8 +317,7 @@ def remove_bot(canvas, agents, chargers):
 
 
 def add_cat(canvas, cats, passiveObjects=(), agents=()):
-    cat_num = len(cats)
-    cat = Cat(f"Cat{cat_num}")
+    cat = Cat(_next_entity_name("cat"))
     cx, cy = _find_clear_position(
         passiveObjects,
         _DEBRIS_CLEARANCE,
@@ -330,8 +344,7 @@ def remove_cat(canvas, cats):
 
 
 def add_charger(canvas, passiveObjects, chargers):
-    charger_num = len(chargers)
-    charger = Charger(f"Charger{charger_num}")
+    charger = Charger(_next_entity_name("charger"))
     cx, cy = _find_clear_position(passiveObjects, _CHARGER_CLEARANCE)
     charger.centreX, charger.centreY = cx, cy
     passiveObjects.append(charger)

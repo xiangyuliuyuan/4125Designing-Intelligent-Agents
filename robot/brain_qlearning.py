@@ -206,9 +206,10 @@ class QLearningBrain:
             if self.overlapCount <= 0 or bot_sum <= 20000:
                 self.isOverlapping = False
                 self.isAvoiding = False
-            turn = random.uniform(-1.0, 1.0)
-            self._reset_q_tracking()
-            return -5.0 + turn, -5.0 - turn, newX, newY
+            else:
+                turn = random.uniform(-1.0, 1.0)
+                self._reset_q_tracking()
+                return -5.0 + turn, -5.0 - turn, newX, newY
 
         # 3. Cat avoidance
         if cat_sum > 3000:
@@ -217,6 +218,7 @@ class QLearningBrain:
             self._reset_q_tracking()
             return 0.0, 0.0, newX, newY
         elif cat_sum > 700:
+            self.is_cat_frozen = False
             self.isAvoidingCat = True
             self._reset_q_tracking()
             if catL > catR:

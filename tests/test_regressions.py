@@ -2380,6 +2380,104 @@ class RegressionTests(unittest.TestCase):
         self.assertIsNotNone(path)
         self.assertLess(len(path), 6)
 
+    # ------------------------------------------------------------------
+    # Bug fix regression tests
+    # ------------------------------------------------------------------
+
+    def test_qlearning_clears_cat_frozen_on_freeze_to_avoidance_transition(self):
+        """Bug 1: is_cat_frozen must clear when cat_sum drops from freeze to avoidance range."""
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.make_bot("Learner")
+        brain = QLearningBrain(bot)
+        bot.setBrain(brain)
+
+        # Frame 1: cat_sum > 3000 -> freeze
+        brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 0, 0, 2000, 1500)
+        self.assertTrue(brain.is_cat_frozen)
+
+        # Frame 2: cat_sum in 700-3000 -> avoidance (not freeze)
+        brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 0, 0, 500, 400)
+        self.assertFalse(brain.is_cat_frozen)
+        self.assertTrue(brain.isAvoidingCat)
+
+    def test_qlearning_overlap_does_not_emit_extra_backward_frame(self):
+        """Bug 2: When overlap resolves, the bot should not output backward speeds."""
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.make_bot("Overlapper")
+        brain = QLearningBrain(bot)
+        bot.setBrain(brain)
+
+        # Trigger overlap
+        brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
+        self.assertTrue(brain.isOverlapping)
+
+        # Drain overlap counter
+        for _ in range(14):
+            brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 25000, 0, 0, 0)
+
+        # Frame after overlap resolves with no bot signal
+        sl, sr, _, _ = brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 0, 0, 0, 0)
+        self.assertFalse(brain.isOverlapping)
+        self.assertGreaterEqual(sl, 0.0, "Should not output backward speed after overlap resolves")
+
+    def test_entity_names_unique_after_remove_and_add(self):
+        """Bug 3: Entity names must stay unique across add/remove cycles."""
+        from simulation.factory import add_cat, remove_cat, _reset_entity_counters, _entity_counters
+
+        canvas = DummyCanvas()
+        _reset_entity_counters()
+        cats = []
+        for i in range(4):
+            from entities.cat import Cat
+            cat = Cat(f"Cat{i}")
+            cats.append(cat)
+        _entity_counters["cat"] = 4
+
+        remove_cat(canvas, cats)
+        self.assertEqual(len(cats), 3)
+
+        add_cat(canvas, cats)
+        self.assertEqual(len(cats), 4)
+
+        names = [c.name for c in cats]
+        self.assertEqual(len(set(names)), len(names), f"Duplicate names found: {names}")
+
+    def test_coverage_brain_logs_cat_freeze_transition(self):
+        """Bug 4: CoverageMapBrain must log cat state transitions."""
+        from unittest.mock import call
+        from robot.brain_coverage import CoverageMapBrain
+
+        bot = self.make_bot("CovBot")
+        brain = CoverageMapBrain(bot)
+        bot.setBrain(brain)
+
+        with patch("robot.brain_coverage.log_event") as mock_log:
+            # No cat -> freeze
+            brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 800, 0, 0, 0, 0, 2000, 1500)
+            freeze_calls = [c for c in mock_log.call_args_list if c[1].get("event") == "bot.cat_freeze_started"]
+            self.assertEqual(len(freeze_calls), 1)
+
+    def test_coverage_find_least_visited_returns_nearest_unvisited(self):
+        """Bug 5: Single-pass _find_least_visited_cell must find the nearest least-visited cell."""
+        from robot.brain_coverage import CoverageMapBrain
+
+        bot = self.make_bot("CovBot")
+        brain = CoverageMapBrain(bot)
+        bot.setBrain(brain)
+
+        # Mark all cells as visited once
+        for gy in range(50):
+            for gx in range(50):
+                brain.coverage_grid[gy][gx] = 1
+
+        # Leave one cell at (1, 1) unvisited
+        brain.coverage_grid[1][1] = 0
+
+        result = brain._find_least_visited_cell(10, 10)
+        self.assertEqual(result, (1, 1))
+
 
 if __name__ == "__main__":
     unittest.main()
