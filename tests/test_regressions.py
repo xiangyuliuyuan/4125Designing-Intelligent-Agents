@@ -2572,6 +2572,46 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(snap["debris"], "3",
                          "Remaining trash should include cleanable dust/crumb AND debris")
 
+    def test_qlearning_respects_queuing_at_charger(self):
+        """Bug 13: Q-learning bot must stop when queuing at a charger, not back-bump it."""
+        from robot.brain_qlearning import QLearningBrain
+
+        bot = self.make_bot("Queuer")
+        brain = QLearningBrain(bot)
+        bot.setBrain(brain)
+        bot.queuing_at_charger = True
+
+        # Strong bot_sum would normally trigger overlap and send bot flying.
+        sl, sr, _, _ = brain.thinkAndAct(0, 0, 0, 0, 500, 500, 0, 0, 300,
+                                          0, 0, 50000, 0, 0, 0)
+
+        self.assertEqual((sl, sr), (0.0, 0.0),
+                         "Queuing bot must stop even under overlap signal")
+
+    def test_overlap_backup_displacement_is_bounded(self):
+        """Bug 14: one overlap encounter must not send a bot flying ~75 px away."""
+        from robot.brain import Brain
+
+        bot = self.make_bot("Bumper")
+        brain = Brain(bot)
+        bot.setBrain(brain)
+
+        # One overlap encounter: trigger with strong signal, then signal drops
+        # to zero (as would happen once mutual backup separates the bots).
+        total_displacement = 0.0
+        for frame in range(30):
+            bot_signal = 30000 if frame == 0 else 0
+            sl, sr, _, _ = brain.thinkAndAct(
+                0, 0, 0, 0, 500, 500, 0, 0, 800,
+                0, 0, bot_signal, 0, 0, 0,
+            )
+            if sl < 0 and sr < 0:  # only count backward backup motion
+                total_displacement += abs((sl + sr) / 2.0)
+
+        # Previously: 15 frames @ speed 5 = 75 px. Must now be noticeably less.
+        self.assertLess(total_displacement, 40.0,
+                        f"Per-bot backup displacement too large: {total_displacement}")
+
     def test_cat_collides_with_debris_across_wrap_boundary(self):
         """Bug 6: Cat collision detection must use wrapped distance in toroidal world."""
         from entities.cat import Cat

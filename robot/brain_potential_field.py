@@ -20,7 +20,9 @@ class PotentialFieldBrain:
         self.overlapCount = 0
         self.overlap_direction = 0
         self.overlap_threshold = 20000
-        self.overlap_back_frames = 15
+        # Softer mutual separation (see brain.py for rationale).
+        self.overlap_back_frames = 8
+        self.overlap_back_speed = 3.0
 
         # State flags needed by derive_bot_mode / external code
         self.isAvoiding = False
@@ -200,9 +202,9 @@ class PotentialFieldBrain:
                 )
 
             if self.overlapCount > 0:
-                turn = random.uniform(-1.0, 1.0)
-                speedLeft = -5.0 + turn
-                speedRight = -5.0 - turn
+                turn = random.uniform(-0.5, 0.5)
+                speedLeft = -self.overlap_back_speed + turn
+                speedRight = -self.overlap_back_speed - turn
                 self.overlapCount -= 1
             else:
                 self.isOverlapping = False

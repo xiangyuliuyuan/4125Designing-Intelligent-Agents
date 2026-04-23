@@ -64,6 +64,10 @@ class QLearningBrain:
         self._debris_back_frames = 5
         self._debris_turn_frames = 18
 
+        # Softer overlap separation (see brain.py for rationale).
+        self.overlap_back_frames = 8
+        self.overlap_back_speed = 3.0
+
     def _reset_q_tracking(self):
         """Reset Q-learning tracking state so accumulated rewards don't leak
         across safety override frames."""
@@ -190,6 +194,17 @@ class QLearningBrain:
 
         # --- Safety overrides (before Q-learning) ---
 
+        # 0. Charger queuing: stop in place so the bot waits its turn instead
+        # of bumping the currently-charging bot. Must precede overlap handling
+        # — otherwise the Q-learning bot just backs away and cycles forever.
+        if getattr(self.bot, "queuing_at_charger", False):
+            if self.isOverlapping:
+                self.isOverlapping = False
+                self.isAvoiding = False
+                self.overlapCount = 0
+            self._reset_q_tracking()
+            return 0.0, 0.0, newX, newY
+
         # 1. Cat freeze
         if self.force_cat_freeze:
             self.is_cat_frozen = True
@@ -200,16 +215,21 @@ class QLearningBrain:
         if bot_sum > 20000 and not self.isOverlapping:
             self.isOverlapping = True
             self.isAvoiding = True
-            self.overlapCount = 15
+            self.overlapCount = self.overlap_back_frames
         if self.isOverlapping:
             self.overlapCount -= 1
             if self.overlapCount <= 0 or bot_sum <= 20000:
                 self.isOverlapping = False
                 self.isAvoiding = False
             else:
-                turn = random.uniform(-1.0, 1.0)
+                turn = random.uniform(-0.5, 0.5)
                 self._reset_q_tracking()
-                return -5.0 + turn, -5.0 - turn, newX, newY
+                return (
+                    -self.overlap_back_speed + turn,
+                    -self.overlap_back_speed - turn,
+                    newX,
+                    newY,
+                )
 
         # 3. Cat avoidance
         if cat_sum > 3000:
