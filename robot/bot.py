@@ -70,6 +70,44 @@ class Bot:
             paths[charger] = self.astar.find_path(self.x, self.y, target_x, target_y, passiveObjects)
         return paths
 
+    # Queue radius — the zone in which a seeking bot must stop and wait for
+    # its turn rather than approach the charger docking area. Previously
+    # this was 60 (barely outside the 30-px docking radius), which let
+    # followers bump the charging bot. 120 keeps the queue a clear step
+    # back from the dock.
+    QUEUE_RADIUS = 120
+    DOCKING_RADIUS = 30  # mirrors the "at charger" threshold used below
+
+    def _should_queue_at_charger(self, agents):
+        """True if the bot should stop and wait rather than approach its target
+        charger. Triggers when another bot has effectively claimed the charger
+        (already charging there, or closer to it than us and also seeking)."""
+        charger = self.target_charger
+        if charger is None or not self.charger:
+            return False
+        if self.battery >= self.battery_low_threshold:
+            return False
+        my_dist = self.distanceTo(charger)
+        if my_dist >= self.QUEUE_RADIUS:
+            return False  # not at the queue zone yet
+
+        # Case 1: someone is already charging in our slot.
+        if charger.is_charging and charger.charging_bot is not self:
+            return True
+
+        # Case 2: another seeker is closer to (or docking at) the same charger.
+        # Use target_charger as a soft reservation — ties broken by distance.
+        for agent in agents or []:
+            if agent is self or not isinstance(agent, Bot):
+                continue
+            if agent.target_charger is not charger:
+                continue
+            if getattr(agent, "actively_charging", False):
+                return True
+            if agent.charger and agent.distanceTo(charger) < my_dist:
+                return True
+        return False
+
     def reset_charging_state(self):
         self.low_battery_active = False
         self.path_calculated = False
@@ -133,15 +171,9 @@ class Bot:
         # Store agents reference for charger allocation in update()
         self._agents_ref = agents
 
-        # Determine queuing state before brain runs so overlap avoidance is suppressed
-        self.queuing_at_charger = (
-            self.target_charger is not None
-            and self.charger
-            and self.battery < self.battery_low_threshold
-            and self.distanceTo(self.target_charger) < 60
-            and self.target_charger.is_charging
-            and self.target_charger.charging_bot is not self
-        )
+        # Determine queuing state before brain runs so overlap avoidance is
+        # suppressed while the bot waits its turn.
+        self.queuing_at_charger = self._should_queue_at_charger(agents)
 
         lightL, lightR = sensing.sense_light(self.sensorPositions, passiveObjects)
         botLightL, botLightR = sensing.sense_other_bots(self.sensorPositions, agents, self)
@@ -591,6 +623,17 @@ class Bot:
     def move(self, canvas, dt):
         motion.advance(self, dt)
         motion.wrap(self)
+        # Hard non-penetration floor: sensor-based overlap recovery can't
+        # react fast enough to stop two bots from entering each other's
+        # body radius, so clamp the position after advance() against every
+        # other bot. The engine runs agents serially, so the cached
+        # `_agents_ref` reflects everyone's up-to-date position this frame.
+        other_bots = [
+            agent for agent in getattr(self, "_agents_ref", []) or []
+            if agent is not self and isinstance(agent, Bot)
+        ]
+        if other_bots:
+            motion.resolve_bot_collisions(self, other_bots)
         canvas.delete(self.name)
         self.draw(canvas)
 

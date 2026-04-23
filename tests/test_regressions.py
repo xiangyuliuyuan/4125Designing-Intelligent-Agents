@@ -2572,6 +2572,87 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(snap["debris"], "3",
                          "Remaining trash should include cleanable dust/crumb AND debris")
 
+    def test_bots_cannot_occupy_same_body_space(self):
+        """Bug 15: physical non-penetration — two bots must never end a frame
+        inside each other's body radius, regardless of what their brains say."""
+        from robot.motion import BOT_CONTACT_DISTANCE, resolve_bot_collisions
+
+        a = self.make_bot("A")
+        b = self.make_bot("B")
+        a.x, a.y = 500.0, 500.0
+        b.x, b.y = 520.0, 500.0  # only 20 px apart — way inside contact
+        resolve_bot_collisions(a, [b])
+        # After correction, A must be at least the contact distance away.
+        from robot.motion import wrapped_delta
+        dx = wrapped_delta(b.x, a.x)
+        dy = wrapped_delta(b.y, a.y)
+        dist = (dx * dx + dy * dy) ** 0.5
+        self.assertGreaterEqual(dist, BOT_CONTACT_DISTANCE - 1e-3,
+                                f"bots still overlap after resolve: dist={dist}")
+
+    def test_bot_move_blocks_penetration_into_stationary_bot(self):
+        """Bug 15: a moving bot cannot walk through a stationary charging bot."""
+        from robot.motion import BOT_CONTACT_DISTANCE, wrapped_delta
+        canvas = DummyCanvas()
+
+        stationary = self.make_bot("Charger-occupant")
+        stationary.x, stationary.y = 500.0, 500.0
+        stationary.sl = stationary.sr = 0.0
+
+        mover = self.make_bot("Approacher")
+        mover.x, mover.y = 450.0, 500.0  # 50 px away
+        mover.theta = 0.0  # facing +x, directly at the stationary bot
+        mover.sl = mover.sr = 5.0  # forward at full speed
+        mover._agents_ref = [mover, stationary]
+
+        # Step a handful of frames — mover should never end a frame inside the
+        # stationary bot's body radius.
+        for _ in range(20):
+            mover.move(canvas, 1.0)
+            dx = wrapped_delta(stationary.x, mover.x)
+            dy = wrapped_delta(stationary.y, mover.y)
+            dist = (dx * dx + dy * dy) ** 0.5
+            self.assertGreaterEqual(dist, BOT_CONTACT_DISTANCE - 1e-3,
+                                    f"mover penetrated stationary bot: dist={dist}")
+
+    def test_bot_queues_when_another_seeker_is_closer_to_same_charger(self):
+        """Bug 16: two low-battery bots targeting the same charger — the farther
+        one must queue (stop) instead of racing in and dogpiling."""
+        charger = types.SimpleNamespace(
+            name="C0", centreX=500, centreY=500, is_charging=False,
+            charging_bot=None, getLocation=lambda: (500, 500),
+        )
+
+        leader = self.make_bot("Leader")
+        leader.target_charger = charger
+        leader.charger = True
+        leader.battery = 300
+        leader.x, leader.y = 490.0, 500.0  # very close to the charger
+
+        follower = self.make_bot("Follower")
+        follower.target_charger = charger
+        follower.charger = True
+        follower.battery = 300
+        follower.x, follower.y = 430.0, 500.0  # 70 px out — inside queue radius
+
+        self.assertTrue(
+            follower._should_queue_at_charger([leader, follower]),
+            "follower should queue behind the closer seeker",
+        )
+        self.assertFalse(
+            leader._should_queue_at_charger([leader, follower]),
+            "leader is closest and charger is free — must not queue",
+        )
+
+    def test_queue_radius_is_wider_than_docking_radius(self):
+        """Bug 16: queue radius must be wider than the docking zone so the
+        follower stops outside the dock instead of bumping the charger."""
+        from robot.bot import Bot
+        self.assertGreater(Bot.QUEUE_RADIUS, Bot.DOCKING_RADIUS,
+                           "queue must start before the dock")
+        self.assertGreaterEqual(Bot.QUEUE_RADIUS, 100,
+                                "queue radius too tight to prevent dogpiles")
+
     def test_qlearning_respects_queuing_at_charger(self):
         """Bug 13: Q-learning bot must stop when queuing at a charger, not back-bump it."""
         from robot.brain_qlearning import QLearningBrain

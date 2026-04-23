@@ -1,6 +1,8 @@
 import math
 
 WORLD_SIZE = 1000
+BOT_RADIUS = 28  # matches the drawn body in bot.draw()
+BOT_CONTACT_DISTANCE = 2 * BOT_RADIUS  # 56 px — bots may not come closer
 
 
 def advance(bot, dt):
@@ -45,3 +47,36 @@ def distance_to(bot, obj):
     dx = wrapped_delta(bot.x, xx)
     dy = wrapped_delta(bot.y, yy)
     return math.sqrt(dx * dx + dy * dy)
+
+
+def resolve_bot_collisions(bot, other_bots):
+    """Post-move position correction: push `bot` out of any physical overlap
+    with another bot so two bodies never occupy the same space.
+
+    Runs *after* advance()/wrap() so the caller already has the candidate
+    next position. Performed pairwise per bot — since the engine processes
+    agents serially, a bot that enters this call already sees its
+    neighbors' up-to-date positions for this frame.
+
+    Works with the existing sensor-based avoidance: sensors steer early,
+    this layer is the hard "you can't walk through another robot" floor.
+    """
+    for other in other_bots:
+        if other is bot:
+            continue
+        dx = wrapped_delta(other.x, bot.x)
+        dy = wrapped_delta(other.y, bot.y)
+        dist_sq = dx * dx + dy * dy
+        if dist_sq >= BOT_CONTACT_DISTANCE * BOT_CONTACT_DISTANCE:
+            continue
+        if dist_sq < 1e-6:
+            # Exactly coincident (rare) — nudge along x so next frame's
+            # vector is well-defined.
+            bot.x = (bot.x + 1.0) % WORLD_SIZE
+            continue
+        dist = math.sqrt(dist_sq)
+        overlap = BOT_CONTACT_DISTANCE - dist
+        # Push bot AWAY from the other bot along the contact vector.
+        bot.x -= (dx / dist) * overlap
+        bot.y -= (dy / dist) * overlap
+    wrap(bot)
