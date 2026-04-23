@@ -1,6 +1,8 @@
+import itertools
 import math
 import random
 import sys
+import threading
 import time
 import traceback
 import argparse
@@ -23,6 +25,13 @@ FRAME_DT = 1.0
 DEFAULT_HEADLESS_LOG_NAME = "headless.log"
 HEADLESS_LOG_PATH = Path("logs") / DEFAULT_HEADLESS_LOG_NAME
 DEFAULT_QTABLE_PATH = os.path.join(os.path.dirname(__file__), "experiments", "qtables", "trained.json")
+
+# The project's "sim" logger is a process-global singleton. Concurrent in-process
+# callers of run_simulation() would otherwise strip each other's handlers via
+# configure_logging(reset=True) and cross-contaminate the log files. Serialize
+# them here and give each call a unique default filename.
+_run_simulation_lock = threading.Lock()
+_run_simulation_call_id = itertools.count(1)
 
 
 class FakeCanvas:
@@ -197,10 +206,20 @@ def _load_qtable_for_agents(agents, qtable_path, brain_type):
 
 
 def run_simulation(seed=42, dt=FRAME_DT, frames=TOTAL_FRAMES, log_filename=None, emit_stdout=True, brain_type="subsumption", qtable_path=None):
+    # Serialize concurrent callers so they don't race on the shared "sim" logger.
+    with _run_simulation_lock:
+        return _run_simulation_locked(seed, dt, frames, log_filename, emit_stdout, brain_type, qtable_path)
+
+
+def _run_simulation_locked(seed, dt, frames, log_filename, emit_stdout, brain_type, qtable_path):
     runtime.reset()
     if log_filename is None:
-        # Per-PID default keeps concurrent in-process/subprocess callers isolated.
-        log_filename = f"headless-{os.getpid()}.log"
+        # Per-PID + per-call-id default keeps concurrent subprocess AND
+        # in-process callers isolated (the lock already serializes in-process
+        # callers; the unique filename prevents sequential calls from
+        # overwriting each other's on-disk output).
+        call_id = next(_run_simulation_call_id)
+        log_filename = f"headless-{os.getpid()}-{call_id}.log"
     log_path = Path("logs") / log_filename
     reset_headless_log_files(log_path)
     log_path = configure_logging(

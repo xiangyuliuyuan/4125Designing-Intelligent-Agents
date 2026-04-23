@@ -1,4 +1,5 @@
 import os
+import threading
 import types
 import unittest
 import runpy
@@ -2508,6 +2509,43 @@ class RegressionTests(unittest.TestCase):
         self.assertIsNotNone(captured["log_filename"])
         self.assertIn(str(os.getpid()), captured["log_filename"],
                       f"Default log must include PID, got {captured['log_filename']!r}")
+
+    def test_run_simulation_concurrent_in_process_callers_isolated(self):
+        """Bug 12: Concurrent threads calling run_simulation() must not share a log file
+        and must not undercount events due to logger-state races."""
+        import run_headless
+        from concurrent.futures import ThreadPoolExecutor
+        from robot.brain_qlearning import QLearningBrain
+
+        captured_filenames = []
+        captured_lock = threading.Lock()
+
+        def make_fake_configure_logging():
+            def fake_configure_logging(**kwargs):
+                with captured_lock:
+                    captured_filenames.append(kwargs.get("log_filename"))
+                return "/tmp/unused.log"
+            return fake_configure_logging
+
+        def invoke():
+            bot = self.mod.Bot("Bot0")
+            bot.setBrain(QLearningBrain(bot))
+            bot.setAStar(self.mod.AStar(1000, 1000, 20))
+            world = ([bot], [], self.mod.Counter(), [], 0, [], 0.0)
+            with patch.object(run_headless, "initialise_world", return_value=world), \
+                 patch.object(run_headless, "configure_logging", side_effect=make_fake_configure_logging()), \
+                 patch.object(run_headless, "reset_headless_log_files"), \
+                 patch.object(run_headless, "count_events", return_value={
+                     "collision_detected": 0, "cat.panic_jump": 0, "bot.physical_cat_freeze": 0,
+                 }):
+                return run_headless.run_simulation(seed=0, frames=0, emit_stdout=False)
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _i: invoke(), range(4)))
+
+        self.assertEqual(len(captured_filenames), 4)
+        self.assertEqual(len(set(captured_filenames)), 4,
+                         f"Each concurrent call must get a unique filename; got {captured_filenames!r}")
 
     def test_count_events_tolerates_missing_log_file(self):
         """Bug 9: count_events must not crash when another process deleted the log."""
